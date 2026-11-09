@@ -245,7 +245,7 @@ export function Sequencer() {
               <div className={`track-head ${ui.trackId === t.id ? 'sel' : ''}`} onMouseDown={() => setUI({ trackId: ui.trackId === t.id ? null : t.id })}>
                 <div className="name-row">
                   <span className="swatch" style={{ background: t.color }} />
-                  <input className="tname" value={t.name} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => actions.updateTrack(t.id, { name: e.target.value }, 'Rename layer')} onKeyDown={(e) => e.stopPropagation()} />
+                  <input className="tname" value={t.name} onMouseDown={(e) => e.stopPropagation()} onChange={(e) => actions.updateTrack(t.id, { name: e.target.value }, 'Rename layer')} onKeyDown={(e) => !e.ctrlKey && !e.metaKey && e.stopPropagation()} />
                 </div>
                 <div className="name-row" onMouseDown={(e) => e.stopPropagation()}>
                   <select value={t.role} title="Musical role of this layer" onChange={(e) => actions.updateTrack(t.id, { role: e.target.value as Role })}>

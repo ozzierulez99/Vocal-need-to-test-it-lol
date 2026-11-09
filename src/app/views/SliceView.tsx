@@ -108,7 +108,7 @@ function SliceInspector({ slices }: { slices: Slice[] }) {
       <TextField label="Tags (comma separated)" value={s.tags.join(', ')} onChange={(v) => upd({ tags: v.split(',').map((t) => t.trim()).filter(Boolean) })} testid="slice-tags" />
       <label className="field">
         <span>Notes</span>
-        <textarea rows={2} value={s.notes ?? ''} onChange={(e) => upd({ notes: e.target.value })} onKeyDown={(e) => e.stopPropagation()} />
+        <textarea rows={2} value={s.notes ?? ''} onChange={(e) => upd({ notes: e.target.value })} onKeyDown={(e) => !e.ctrlKey && !e.metaKey && e.stopPropagation()} />
       </label>
       <dl className="info-grid">
         <dt>Position</dt><dd>{(s.start / src.sampleRate).toFixed(3)} – {(s.end / src.sampleRate).toFixed(3)} s</dd>

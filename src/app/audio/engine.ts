@@ -170,15 +170,23 @@ class Session {
   private rebuildBuses(tracks: Track[]) {
     this.lastTracks = tracks;
     for (const t of tracks) {
-      if (this.buses.has(t.id) && !(t.filter && t.filter.type !== 'off')) continue;
-      if (t.filter && t.filter.type !== 'off') {
-        const f = this.ctx.createBiquadFilter();
-        f.type = t.filter.type;
-        f.frequency.value = t.filter.frequency;
-        f.Q.value = Math.SQRT1_2;
-        f.connect(this.master);
-        this.buses.set(t.id, f);
-      } else if (!this.buses.has(t.id)) this.buses.set(t.id, this.master);
+      const want = t.filter && t.filter.type !== 'off';
+      const cur = this.buses.get(t.id);
+      if (!want) {
+        this.buses.set(t.id, this.master);
+        continue;
+      }
+      if (cur && cur !== this.master && cur instanceof BiquadFilterNode) {
+        cur.type = t.filter!.type as BiquadFilterType;
+        cur.frequency.value = t.filter!.frequency;
+        continue;
+      }
+      const f = this.ctx.createBiquadFilter();
+      f.type = t.filter!.type as BiquadFilterType;
+      f.frequency.value = t.filter!.frequency;
+      f.Q.value = Math.SQRT1_2;
+      f.connect(this.master);
+      this.buses.set(t.id, f);
     }
   }
 

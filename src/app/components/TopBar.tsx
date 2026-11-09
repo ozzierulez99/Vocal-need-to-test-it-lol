@@ -122,7 +122,7 @@ export function TopBar() {
       </div>
       <ProjectMenu />
       <div className="project-name">
-        <input data-testid="project-name" value={name} onChange={(e) => commit('Rename project', (d) => void (d.name = e.target.value))} onKeyDown={(e) => e.stopPropagation()} />
+        <input data-testid="project-name" value={name} onChange={(e) => commit('Rename project', (d) => void (d.name = e.target.value))} onKeyDown={(e) => !e.ctrlKey && !e.metaKey && e.stopPropagation()} />
         {dirty && <span className="dirty-dot" title="Unsaved changes" />}
       </div>
       <nav className="nav">

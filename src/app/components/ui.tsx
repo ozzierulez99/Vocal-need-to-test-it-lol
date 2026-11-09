@@ -68,7 +68,7 @@ export function NumberField({ label, value, onChange, min, max, step = 1, testid
         onBlur={commit}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          e.stopPropagation();
+          if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
         }}
       />
       {suffix && <i className="suffix">{suffix}</i>}
@@ -90,7 +90,7 @@ export function TextField({ label, value, onChange, testid, placeholder }: { lab
         onBlur={() => draft !== value && onChange(draft)}
         onKeyDown={(e) => {
           if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          e.stopPropagation();
+          if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
         }}
       />
     </label>
