@@ -29,6 +29,8 @@ class AudioEngine {
   private dataRef = new Map<string, AudioData>();
   private session: Session | null = null;
   private auditionNodes: { src: AudioBufferSourceNode; gain: GainNode }[] = [];
+  /** When enabled (tests/diagnostics) every scheduled node is recorded relative to the session start. */
+  debugSchedule: { eventId: string; at: number; offset: number; duration: number; rate: number }[] | null = null;
   /** Last audition (for drawing a moving cursor on the waveform). */
   auditionInfo: { sourceId: string; start: number; end: number; t0: number; dur: number; rate: number; reverse: boolean } | null = null;
 
@@ -304,6 +306,7 @@ class Session {
     g.gain.linearRampToValueAtTime(0, t + remaining);
     src.connect(g).connect(pan).connect(this.buses.get(p.trackId) ?? this.master);
     src.start(t, offsetSec, remaining * p.rate);
+    this.engine.debugSchedule?.push({ eventId: p.eventId, at: t - this.startTime, offset: offsetSec, duration: remaining, rate: p.rate });
     src.stop(t + remaining + 0.01);
     this.nodes.add(src);
     src.onended = () => this.nodes.delete(src);

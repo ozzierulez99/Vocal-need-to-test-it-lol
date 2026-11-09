@@ -8,6 +8,7 @@ import { EXAMPLES } from '../../core/demo/examples';
 import { DEMO_VOICES } from '../../core/demo/synthVoice';
 import { platform, type Recent } from '../platform/platform';
 import type { View } from '../store/store';
+import { Help } from './Help';
 
 const VIEWS: { id: View; label: string; key: string }[] = [
   { id: 'slice', label: 'Sources & Slices', key: '1' },
@@ -114,6 +115,7 @@ export function TopBar() {
   const auditioning = useStore((s) => s.ui.auditioning);
   const candLabel = useStore((s) => s.doc.candidates.find((c) => c.id === s.ui.auditioning)?.label);
   const commit = useStore((s) => s.commit);
+  const [help, setHelp] = useState(false);
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'SELECT') return;
@@ -142,6 +144,8 @@ export function TopBar() {
         ))}
       </nav>
       <div className="spacer" />
+      <button className="btn ghost" data-testid="help-btn" onClick={() => setHelp(true)} title="Shortcuts & gestures">?</button>
+      {help && <Help onClose={() => setHelp(false)} />}
       <button className="btn ghost" data-testid="undo" disabled={!canUndo} onClick={() => useStore.getState().undo()} title="Undo (Ctrl+Z)">↶</button>
       <button className="btn ghost" data-testid="redo" disabled={!canRedo} onClick={() => useStore.getState().redo()} title="Redo (Ctrl+Shift+Z)">↷</button>
       <div className="transport">

@@ -254,6 +254,7 @@ export function Sequencer() {
                   <button className={`tbtn m ${t.mute ? 'on' : ''}`} data-testid={`mute-${t.name}`} title="Mute" onClick={() => actions.updateTrack(t.id, { mute: !t.mute }, 'Mute')}>M</button>
                   <button className={`tbtn s ${t.solo ? 'on' : ''}`} data-testid={`solo-${t.name}`} title="Solo" onClick={() => actions.updateTrack(t.id, { solo: !t.solo }, 'Solo')}>S</button>
                   <button className={`tbtn l ${t.locked ? 'on' : ''}`} data-testid={`lock-${t.name}`} title="Lock layer (regeneration keeps it)" onClick={() => actions.updateTrack(t.id, { locked: !t.locked }, 'Lock layer')}>🔒</button>
+                  <button className={`tbtn r ${t.rhythmLocked ? 'on' : ''}`} data-testid={`rlock-${t.name}`} title="Rhythm lock: regeneration keeps this layer's onsets and only re-chooses slices/pitches" onClick={() => actions.updateTrack(t.id, { rhythmLocked: !t.rhythmLocked }, 'Rhythm lock')}>R</button>
                   <button className="tbtn" title="Regenerate only this layer" onClick={() => regenerateLayer(t.id)}>↻</button>
                   <button className="tbtn" title="Delete layer" onClick={() => window.confirm(`Delete layer “${t.name}” and its events?`) && actions.removeTrack(t.id)}>✕</button>
                 </div>

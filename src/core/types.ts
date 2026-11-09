@@ -128,6 +128,8 @@ export interface Track {
   pan: number;
   /** Whole-layer lock: regeneration never touches this track. */
   locked: boolean;
+  /** Rhythm lock: regeneration keeps onsets/gates/dynamics and only re-chooses slices & pitches. */
+  rhythmLocked?: boolean;
   color: string;
   filter?: TrackFilter;
 }

@@ -267,6 +267,7 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
     const track = trackFor.get(l.key)!;
     if (track.locked) continue;
     if (!inScopeTrack(track.id)) continue;
+    const layerEvents: SeqEvent[] = [];
     for (const nt of l.notes) {
       if (nt.tick < 0 || nt.tick >= total) continue;
       if (lockedBars.has(Math.floor(nt.tick / bar))) continue;
@@ -302,8 +303,29 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
       };
       if (lockedKept.some((k) => k.trackId === ev.trackId && eventOverlaps(k, ev))) continue;
       while (keptIds.has(ev.id)) ev.id = `${ev.id}x`;
-      newEvents.push(ev);
+      layerEvents.push(ev);
     }
+    if (track.rhythmLocked) {
+      // Rhythm lock: keep this layer's onsets, gates and dynamics; take new slices/pitches from the generated material.
+      const rhythm = (ex?.events ?? []).filter((e) => e.trackId === track.id && !keptIds.has(e.id)).sort((a, b) => a.tick - b.tick);
+      if (rhythm.length && layerEvents.length) {
+        const gen = layerEvents.slice().sort((a, b) => a.tick - b.tick);
+        let j = 0;
+        for (const r of rhythm) {
+          while (j + 1 < gen.length && Math.abs(gen[j + 1].tick - r.tick) <= Math.abs(gen[j].tick - r.tick)) j++;
+          const g = gen[j];
+          let id = `${prefix}-r${(n++).toString(36)}`;
+          while (keptIds.has(id)) id += 'x';
+          newEvents.push({ ...r, id, sliceId: g.sliceId, semitones: g.semitones, reverse: g.reverse, offset: g.offset, motifId: undefined, gesture: 'rhythm-locked', locked: false });
+        }
+        continue;
+      }
+      if (rhythm.length) {
+        newEvents.push(...rhythm);
+        continue;
+      }
+    }
+    newEvents.push(...layerEvents);
   }
   // tracks: keep existing ones (all, when scoped; otherwise only those still in use or locked/user-made)
   const genTracks = layers.map((l) => trackFor.get(l.key)!);

@@ -315,3 +315,19 @@ describe('other meters and edge cases', () => {
     expect(Math.max(...b.events.map((e) => e.tick))).toBeGreaterThan(24 * BAR);
   });
 });
+
+describe('rhythm lock', () => {
+  it('keeps a layer’s onsets and gates while re-choosing its slices', () => {
+    const m = { mode: 'rhythmic' as const, direction: 'playful' as const, sliceIds: [...slicesOf('chop-attacks'), ...slicesOf('voice-b')] };
+    const first = generate(input(m));
+    const lead = first.tracks.find((t) => t.role === 'lead')!;
+    const tracks = first.tracks.map((t) => (t.id === lead.id ? { ...t, rhythmLocked: true } : t));
+    const out = generate(input({ ...m, seed: 999 }, { existing: { tracks, events: first.events, motifs: [], lockedBars: [], lockedRests: [] } }));
+    const before = first.events.filter((e) => e.trackId === lead.id);
+    const after = out.events.filter((e) => e.trackId === lead.id);
+    expect(after.map((e) => [e.tick, e.length, e.velocity])).toEqual(before.map((e) => [e.tick, e.length, e.velocity]));
+    expect(after.some((e, i) => e.sliceId !== before[i].sliceId || e.semitones !== before[i].semitones)).toBe(true);
+    // other layers were regenerated normally
+    expect(similarity(out.events.filter((e) => e.trackId !== lead.id), first.events.filter((e) => e.trackId !== lead.id))).toBeLessThan(0.9);
+  });
+});

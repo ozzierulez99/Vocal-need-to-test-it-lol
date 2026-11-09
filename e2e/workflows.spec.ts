@@ -277,3 +277,73 @@ test('imports MP3 and FLAC, explains invalid files', async ({ page }) => {
   await expect(page.getByTestId('toasts')).toContainText('Could not import “broken.wav”');
   expect(await state<number>(page, '(s) => s.doc.slices.length')).toBeGreaterThan(4);
 });
+
+test('live scheduler timing matches the event model (incl. loop cycles)', async ({ page }) => {
+  await fresh(page);
+  await page.getByTestId('welcome-example-midi-guided').click();
+  await expect(page.getByTestId('event').first()).toBeVisible();
+  // loop the first bar so several cycles get scheduled quickly
+  await page.evaluate(() => {
+    const s = (window as any).__vcs.useStore.getState();
+    s.commit('loop', (d: any) => void (d.sequence.loop = { enabled: true, startTick: 0, endTick: 3840 }));
+    (window as any).__vcsEngine.debugSchedule = [];
+  });
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(4200); // > 2 cycles of a 132 BPM bar (1.82 s)
+  await page.getByTestId('play').click();
+  const r = await page.evaluate(() => {
+    const st = (window as any).__vcs.useStore.getState();
+    const seq = st.doc.sequence;
+    const log = (window as any).__vcsEngine.debugSchedule;
+    return { log, bpm: seq.bpm, events: seq.events.filter((e: any) => e.tick < 3840).map((e: any) => ({ id: e.id, tick: e.tick })) };
+  });
+  const barSec = (4 * 60) / r.bpm;
+  const sec = (tick: number) => (tick * 60) / (r.bpm * 960);
+  expect(r.log.length).toBeGreaterThanOrEqual(r.events.length * 2);
+  for (const entry of r.log) {
+    const ev = r.events.find((e: any) => e.id === entry.eventId);
+    expect(ev).toBeTruthy();
+    const cycle = Math.round((entry.at - sec(ev.tick)) / barSec);
+    expect(Math.abs(entry.at - (sec(ev.tick) + cycle * barSec))).toBeLessThan(0.0005);
+  }
+  // every event of the bar was scheduled in cycle 0 and cycle 1, exactly once each
+  for (const ev of r.events) {
+    const times = r.log.filter((x: any) => x.eventId === ev.id).map((x: any) => Math.round((x.at - sec(ev.tick)) / barSec) + 0);
+    expect(times.slice(0, 2)).toEqual([0, 1]);
+    expect(new Set(times).size).toBe(times.length);
+  }
+  expect(await page.evaluate(() => (window as any).__vcsEngine.isPlaying)).toBe(false);
+});
+
+test('playback from an arbitrary position joins sounding events part-way', async ({ page }) => {
+  await fresh(page);
+  await page.getByTestId('welcome-example-ambient-ghost').click();
+  await expect(page.getByTestId('event').first()).toBeVisible();
+  const target = await page.evaluate(() => {
+    const s = (window as any).__vcs.useStore.getState();
+    const e = s.doc.sequence.events.find((x: any) => x.length > 1500 && !x.reverse);
+    s.commit('no loop', (d: any) => void (d.sequence.loop.enabled = false));
+    (window as any).__vcs.useStore.setState({ positionTick: e.tick + 480 });
+    (window as any).__vcsEngine.debugSchedule = [];
+    return { id: e.id, tick: e.tick };
+  });
+  await page.getByTestId('play').click();
+  await page.waitForTimeout(500);
+  const pos = await state<number>(page, '(s) => s.positionTick');
+  expect(pos).toBeGreaterThan(target.tick + 480);
+  await page.getByTestId('play').click();
+  const entry = await page.evaluate((id) => (window as any).__vcsEngine.debugSchedule.find((x: any) => x.eventId === id), target.id);
+  expect(entry).toBeTruthy();
+  expect(Math.abs(entry.at)).toBeLessThan(0.001); // starts immediately…
+  const bpm = await state<number>(page, '(s) => s.doc.sequence.bpm');
+  const skipped = (480 * 60) / (bpm * 960);
+  const sliceStart = await page.evaluate((id) => {
+    const s = (window as any).__vcs.useStore.getState();
+    const ev = s.doc.sequence.events.find((x: any) => x.id === id);
+    const sl = s.doc.slices.find((x: any) => x.id === ev.sliceId);
+    const src = s.doc.sources.find((x: any) => x.id === sl.sourceId);
+    return (sl.start + ev.offset) / src.sampleRate;
+  }, target.id);
+  // …from the right point inside the slice (skip × playback rate)
+  expect(Math.abs(entry.offset - (sliceStart + skipped * entry.rate))).toBeLessThan(0.002);
+});
