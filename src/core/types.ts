@@ -269,6 +269,8 @@ export interface GeneratorSettings {
   layers: Role[];
   /** Restrict material to these slices (empty = all usable slices). */
   sliceIds: string[];
+  /** UI label of how the material was chosen (e.g. "favourites", "source:<id>"). */
+  materialKey?: string;
   /** Conversation settings */
   voiceA?: string[];
   voiceB?: string[];

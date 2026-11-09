@@ -306,3 +306,9 @@ export function slicePitch(s: Slice, source?: SourceAudio): number | null {
   if (source?.rootNote !== undefined) return source.rootNote;
   return null;
 }
+
+/** Sound regions (non-silent parts) inside [start, end), in absolute frames. */
+export function detectSoundRegionsFor(audio: AudioData, start: number, end: number, thresholdDb = -35) {
+  const sub = { sampleRate: audio.sampleRate, channels: audio.channels.map((c) => c.subarray(start, end)) };
+  return detectSoundRegions(sub, { thresholdDb, minSilenceMs: 60 }).map((r) => ({ start: r.start + start, end: r.end + start }));
+}

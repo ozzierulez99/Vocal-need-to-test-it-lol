@@ -242,6 +242,8 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
     let t = exTracks.find((x) => x.id === id && !usedExisting.has(x.id));
     if (!t && !scope) t = exTracks.find((x) => !usedExisting.has(x.id) && x.role === l.role && x.name === l.name);
     if (t) usedExisting.add(t.id);
+    // an empty placeholder track adopts the generated layer's identity
+    if (t && !(ex?.events ?? []).some((e) => e.trackId === t!.id)) t = { ...t, name: l.name, role: l.role, color: ROLE_COLORS[l.role] };
     trackFor.set(l.key, t ? { ...t } : { id, name: l.name, role: l.role, mute: false, solo: false, gain: 0, pan: 0, locked: false, color: ROLE_COLORS[l.role] });
   }
   const trackById = new Map(exTracks.map((t) => [t.id, t]));
