@@ -21,7 +21,7 @@
     "examples": "tsx scripts/make-examples.ts",
     "package": "npm run build && electron-builder --linux dir -c.electronDist=node_modules/electron/dist",
     "package:linux": "npm run build && electron-builder --linux AppImage",
-    "package:win": "npm run build && electron-builder --win nsis",
+    "package:win": "npm run build && electron-builder --win --x64",
     "package:mac": "npm run build && electron-builder --mac dmg",
     "test:electron": "npm run build && xvfb-run -a playwright test --project electron",
     "test:all": "npm run typecheck && npm test && npm run test:e2e",
@@ -31,7 +31,8 @@
     "appId": "com.vocalchopstudio.app",
     "productName": "Vocal Chop Studio",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "buildResources": "build"
     },
     "files": [
       "dist/**",
@@ -41,24 +42,54 @@
     "extraResources": [
       {
         "from": "examples",
-        "to": "examples"
+        "to": "examples",
+        "filter": [
+          "**/*",
+          "!showcase/**",
+          "!**/preview_*.wav"
+        ]
       }
     ],
     "linux": {
       "category": "Audio",
       "target": [
         "AppImage"
-      ]
+      ],
+      "icon": "build/icon.png"
     },
     "mac": {
       "category": "public.app-category.music"
     },
     "win": {
       "target": [
-        "nsis"
-      ]
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png",
+      "artifactName": "Vocal-Chop-Studio-${version}-win-${arch}.${ext}"
     },
-    "asarUnpack": []
+    "asarUnpack": [],
+    "icon": "build/icon.png",
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Vocal Chop Studio",
+      "artifactName": "Vocal-Chop-Studio-Setup-${version}.${ext}"
+    },
+    "compression": "maximum"
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",

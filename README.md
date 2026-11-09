@@ -181,6 +181,17 @@ The same examples are available inside the app (*Project ▸ Example projects* o
 
 ## 11. Instructions
 
+### Windows
+
+* **Installer:** `Vocal-Chop-Studio-Setup-<version>.exe`. Run it, choose a folder, and it creates Start-menu and desktop shortcuts.
+* **Portable:** `Vocal-Chop-Studio-<version>-win-x64.zip`. Unzip anywhere and run `Vocal Chop Studio.exe`; nothing is installed.
+* Both are produced by the **Build desktop app** GitHub Actions workflow (`.github/workflows/build-desktop.yml`) on a native Windows runner. Download them from the workflow run's *Artifacts*, or from *Releases* when a `v*` tag is pushed. To build on your own Windows PC instead: `npm ci && npm run package:win` (files appear in `release/`).
+* The builds are **not code-signed**, so Windows SmartScreen may say *“Windows protected your PC”*: click *More info → Run anyway*.
+* Projects are folders (`Name.vcs`) wherever you save them. Example projects ship inside the app (*Project ▸ Example projects*).
+
+### From source
+
+
 Requirements: Node.js 20+ (developed with Node 22) and npm.
 
 ```bash
@@ -214,5 +225,5 @@ If `npm install` cannot download Electron (e.g. behind a proxy), download `elect
 * **Recording:** simple mono capture (ScriptProcessorNode, no monitoring, max 3 minutes) at the device sample rate.
 * **UI:** no rubber-band (marquee) selection — use Shift-click and Ctrl+A. The candidate history keeps favourites plus the most recent ideas.
 * **Beat Fit:** the analysis reads MIDI only (not audio). It assumes one key for the whole loop, so modulations and borrowed chords are averaged in. Chord detection uses the triad/7th templates listed above (no 9ths, 11ths or slash-chord names). Only the first tempo and time signature are used, and rhythm fit works on the sixteenth grid of one bar. Harmonisation needs slices with a detectable (or manually set) pitch, and the preview synth is a rough reference sound, not your beat's instruments.
-* **Packaging:** the unpacked Linux build was produced and launched here; AppImage/Windows/macOS targets are configured but were not built or tested in this environment, and builds are unsigned with the default Electron icon.
+* **Packaging:** builds are unsigned (SmartScreen / Gatekeeper warnings). A Windows portable zip was cross-built on Linux. Without Wine, that build keeps Electron's default exe icon; the Windows-runner workflow embeds the app icon. Windows and macOS builds were not run on a real Windows/Mac machine by me; the CI workflow builds them on native runners after the tests pass.
 * **Browser build:** intended for development and automated tests; real project folders on disk require the desktop app.
