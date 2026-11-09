@@ -6,6 +6,7 @@ import { develop, answerMotif, createMotif, type DevOp, type MotifKind } from '.
 import { chooseBarCells, mutateCell, parseCell, applyDensity, swingOffset } from './rhythm';
 import type { Material } from './material';
 import { describeMaterial } from './material';
+import { busyStep, chordChanges } from '../beat/fit';
 
 /** Clip notes into [start, end): drop notes starting outside, shorten overlong ones. */
 export function clipNotes(ns: Note[], start: number, end: number): Note[] {
@@ -169,6 +170,8 @@ export function writeRhythm(ctx: Ctx, form: Section[], lead: Note[]): Note[] {
           const absStep = bar * ctx.stepsPerBar + h.step;
           if (h.step >= ctx.stepsPerBar) continue;
           if (leadOn.has(absStep) && !h.accent) continue; // leave room for the hook
+          if (ctx.song && ctx.song.fit.rhythm === 'complement' && !h.accent && busyStep(ctx.song, h.step) >= 0.5) continue; // and for the beat
+          if (ctx.song && ctx.song.fit.rhythm === 'follow' && !h.accent && busyStep(ctx.song, h.step) < 0.25) continue;
           const m = order[k++ % order.length];
           const tick = absStep * ctx.step + swingOffset(h.step, ctx.prof.swing, ctx.step);
           out.push(note({ tick, length: Math.min(naturalTicks(ctx, m), ctx.step * Math.max(1, h.len)), sliceId: m.slice.id, semitones: 0, gain: ROLE_GAIN.rhythm + (h.accent ? 0 : -3), velocity: h.accent ? 0.9 : 0.6, pan: k % 2 ? -0.2 : 0.2, fadeOut: 8, gesture: 'groove' }));
@@ -197,10 +200,15 @@ export function writeAtmosphere(ctx: Ctx, form: Section[], opts: { delayBars?: n
     const reverse = rng.chance(ctx.prof.reverse);
     const offset = m.attack > 0.6 && !reverse ? Math.round((m.slice.end - m.slice.start) * 0.15) : 0;
     let tick = t;
+    const changes = ctx.song ? chordChanges(ctx.song, total) : [];
     if (reverse) {
-      // reverse swell that lands on the next downbeat
-      const land = Math.ceil((t + nat) / ctx.bar) * ctx.bar;
+      // reverse swell that lands on the next downbeat (or the next chord change of the beat)
+      const land = changes.find((c) => c >= t + nat) ?? Math.ceil((t + nat) / ctx.bar) * ctx.bar;
       tick = Math.max(t, land - nat);
+    } else if (changes.length) {
+      // atmospheric entries arrive with the harmony
+      const near = changes.filter((c) => Math.abs(c - t) <= ctx.bar / 2).sort((a, b) => Math.abs(a - t) - Math.abs(b - t))[0];
+      if (near !== undefined) tick = near;
     }
     if (!sec || sec.energy > 0.2 || rng.chance(0.5)) {
       out.push(note({ tick: Math.round(tick / ctx.step) * ctx.step, length: Math.min(nat, total - tick), sliceId: m.slice.id, semitones: semis, offset, reverse, gain: ROLE_GAIN.atmosphere + rng.float(-2, 1), velocity: 0.5, pan: (i % 2 ? 1 : -1) * (0.3 + rng.float(0, 0.3)), fadeIn: Math.max(ctx.prof.fadeIn, 60) * (reverse ? 3 : 1), fadeOut: Math.max(ctx.prof.fadeOut, 200), gesture: reverse ? 'swell' : 'atmos' }));

@@ -12,9 +12,10 @@ import { Help } from './Help';
 
 const VIEWS: { id: View; label: string; key: string }[] = [
   { id: 'slice', label: 'Sources & Slices', key: '1' },
-  { id: 'compose', label: 'Compose & Explore', key: '2' },
-  { id: 'library', label: 'Library', key: '3' },
-  { id: 'export', label: 'Export', key: '4' },
+  { id: 'beat', label: 'Beat Fit', key: '2' },
+  { id: 'compose', label: 'Compose & Explore', key: '3' },
+  { id: 'library', label: 'Library', key: '4' },
+  { id: 'export', label: 'Export', key: '5' },
 ];
 
 function Position() {
@@ -116,6 +117,7 @@ export function TopBar() {
   const candLabel = useStore((s) => s.doc.candidates.find((c) => c.id === s.ui.auditioning)?.label);
   const commit = useStore((s) => s.commit);
   const [help, setHelp] = useState(false);
+  const beatName = useStore((s) => (s.doc.beat?.enabled ? s.doc.beat.name : null));
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement).tagName === 'INPUT' || (e.target as HTMLElement).tagName === 'SELECT') return;
@@ -140,6 +142,7 @@ export function TopBar() {
         {VIEWS.map((v) => (
           <button key={v.id} data-testid={`nav-${v.id}`} className={view === v.id ? 'on' : ''} onClick={() => setUI({ view: v.id })} title={`Alt+${v.key}`}>
             {v.label}
+            {v.id === 'beat' && beatName && <span className="nav-dot" title={beatName} />}
           </button>
         ))}
       </nav>

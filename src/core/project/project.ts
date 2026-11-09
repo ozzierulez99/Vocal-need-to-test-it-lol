@@ -1,6 +1,7 @@
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import type { AudioData, ProjectDoc, Sequence, ExportSettings } from '../types';
 import { defaultSettings } from '../compose/engine';
+import { DEFAULT_FIT } from '../beat/fit';
 
 /**
  * Project format
@@ -96,6 +97,7 @@ export function parseProject(text: string): ProjectDoc {
     candidates: raw.candidates ?? [],
     exportSettings: { ...defaultExportSettings(), ...(raw.exportSettings ?? {}) },
     midiGuides: raw.midiGuides ?? [],
+    beat: raw.beat ? { ...raw.beat, enabled: raw.beat.enabled ?? true, fit: { ...DEFAULT_FIT, ...(raw.beat.fit ?? {}) } } : undefined,
   };
 }
 

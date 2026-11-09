@@ -15,7 +15,7 @@ export function effectiveSettings(): GeneratorSettings {
 function req() {
   const { doc } = st();
   const seq = doc.sequence;
-  return { slices: doc.slices, sources: doc.sources, bpm: seq.bpm, timeSig: seq.timeSig, existing: seq, bars: seq.bars };
+  return { slices: doc.slices, sources: doc.sources, bpm: seq.bpm, timeSig: seq.timeSig, existing: seq, bars: seq.bars, beat: doc.beat?.enabled ? doc.beat : undefined };
 }
 
 function guard(fn: () => void) {

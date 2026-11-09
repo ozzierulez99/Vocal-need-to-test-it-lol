@@ -314,6 +314,72 @@ export interface MidiGuide {
   useDuration: boolean;
 }
 
+/* ───────────── Beat context (“Fit to my beat”) ───────────── */
+
+export interface BeatChord {
+  tick: number;
+  length: number;
+  root: number;
+  quality: 'maj' | 'min' | 'dim' | 'aug' | 'sus2' | 'sus4' | '7' | 'maj7' | 'm7' | 'note';
+  symbol: string;
+  /** pitch classes of the chord */
+  pcs: number[];
+}
+
+export interface BeatKey {
+  root: number;
+  scale: ScaleName;
+  /** 0..1 */
+  confidence: number;
+  alternatives: { root: number; scale: ScaleName; score: number }[];
+}
+
+export interface BeatRhythm {
+  /** onset occupancy per sixteenth step of one bar, 0..1 (fraction of bars with an onset there) */
+  steps: number[];
+  /** fraction of time per step where something is sounding, 0..1 */
+  sounding: number[];
+  onsetsPerBeat: number;
+  syncopation: number;
+  /** average note length relative to the gap to the next onset (1 = legato/pads) */
+  sustain: number;
+  /** chords: mostly simultaneous notes; arp: fast single-note runs; melody: slower single notes */
+  kind: 'chords' | 'arp' | 'melody' | 'mixed';
+  /** median MIDI pitch */
+  register: number;
+  /** onset density per bar of the loop, 0..1 relative to the busiest bar */
+  densityPerBar: number[];
+  /** typical bars between chord changes */
+  harmonicRhythm: number;
+}
+
+/** Fit options the user controls. */
+export interface BeatFit {
+  /** Snap pitched vocal notes toward the chord sounding underneath. */
+  harmonize: boolean;
+  /** complement: keep chops out of the beat's busiest steps; follow: lock chops onto the beat's rhythm. */
+  rhythm: 'complement' | 'follow' | 'off';
+  /** Play a quiet synth preview of the MIDI under the vocals (never exported). */
+  preview: boolean;
+  previewGain: number;
+}
+
+export interface BeatContext {
+  name: string;
+  notes: MidiNote[];
+  bpm?: number;
+  timeSig: [number, number];
+  /** loop length in ticks (whole bars) */
+  lengthTicks: number;
+  key: BeatKey;
+  /** user override of the detected key */
+  keyOverride?: { root: number; scale: ScaleName };
+  chords: BeatChord[];
+  rhythm: BeatRhythm;
+  fit: BeatFit;
+  enabled: boolean;
+}
+
 export interface CandidateMetrics {
   density: number;
   repetition: number;
@@ -389,4 +455,6 @@ export interface ProjectDoc {
   clickFadeMs: number;
   /** MIDI guides imported into the project. */
   midiGuides: MidiGuide[];
+  /** Optional beat context (chord progression / arp MIDI from the user's beat). */
+  beat?: BeatContext;
 }

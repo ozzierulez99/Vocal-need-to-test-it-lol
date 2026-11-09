@@ -19,7 +19,7 @@ import { ROLE_COLORS } from '../../core/compose/engine';
 import { uid } from '../../core/ids';
 import { buildPeaks, type PeakPyramid } from '../../core/audio/peaks';
 
-export type View = 'slice' | 'compose' | 'library' | 'export';
+export type View = 'slice' | 'beat' | 'compose' | 'library' | 'export';
 
 export interface Toast {
   id: string;

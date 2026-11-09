@@ -7,6 +7,7 @@ import { describeMaterial } from './material';
 import { applyDensity, chooseBarCells, parseCell, euclid } from './rhythm';
 import { contourAt, type Contour } from './theory';
 import { clamp } from '../time';
+import { fitHits } from '../beat/fit';
 
 /**
  * Vocal motif intelligence: build a central motif (rhythm + slice identity +
@@ -49,6 +50,12 @@ export function createMotif(ctx: Ctx, kind: MotifKind, id = 'motif-main', pool?:
   for (let i = 0; i < totalCells; i++) cells.push(applyDensity(rng, i % 2 === 0 ? a : b, prof.density));
   let hits = cells.flatMap((cell, i) => parseCell(cell, i * 8).map((h) => ({ ...h, step: h.step * stride, len: h.len * stride })));
   if (!hits.length) hits = [{ step: 0, len: 2, accent: true }];
+  if (ctx.song && ctx.song.fit.rhythm !== 'off') {
+    const f = fitHits(hits, ctx.song, ctx.song.fit.rhythm, ctx.rng(`beatfit:${id}`));
+    hits = f.hits;
+    if (f.moved || f.dropped)
+      ctx.log.push(`Beat fit (${ctx.song.fit.rhythm === 'follow' ? 'follow the beat' : 'leave room for the beat'}): ${f.moved} motif note(s) moved${f.dropped ? `, ${f.dropped} dropped` : ''}`);
+  }
   // Deliberate gap before the important final word (ethereal/emotional tendency).
   if (kind === 'melodic' && hits.length >= 4 && rng.chance(prof.gaps * 0.8)) {
     hits.splice(hits.length - 2, 1);

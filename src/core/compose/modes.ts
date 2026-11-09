@@ -271,6 +271,13 @@ export function writeMidiLead(ctx: Ctx, guide: MidiGuide): Note[] {
     if (guide.usePitch) {
       const ref = guide.mapping === 'pitch-map' ? n.pitch : guide.rootPitch;
       semis = guide.mapping === 'pitch-map' ? 0 : clamp(n.pitch - ref, -24, 24);
+      if (ctx.song && guide.mapping !== 'pitch-map' && mat.pitch !== null) {
+        // with a beat context, sing the MIDI note's pitch class from the slice's own pitch (nearest octave)
+        let d = n.pitch - mat.pitch;
+        while (d > 6) d -= 12;
+        while (d < -6) d += 12;
+        semis = Math.round(d * 100) / 100;
+      }
     }
     const nat = naturalTicks(ctx, mat, semis);
     const length = guide.useDuration ? Math.min(n.length, nat) : nat;

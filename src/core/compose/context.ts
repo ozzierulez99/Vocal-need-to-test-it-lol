@@ -1,4 +1,4 @@
-import type { CreativeControls, GeneratorSettings, Role, RhythmFeel, Motif, MotifNote } from '../types';
+import type { CreativeControls, GeneratorSettings, Role, RhythmFeel, Motif, MotifNote, BeatContext } from '../types';
 import { PPQ } from '../types';
 import { Rng, stream } from '../rng';
 import type { DirectionProfile } from './directions';
@@ -46,6 +46,8 @@ export interface Ctx {
   log: string[];
   /** Hint for the lead writer: leave the second half of phrases for a response. */
   leaveAnswerSpace: boolean;
+  /** Optional beat context of the user's song (“fit to my beat”). */
+  song?: BeatContext;
 }
 
 export function makeCtx(
@@ -54,6 +56,7 @@ export function makeCtx(
   timeSig: [number, number],
   mats: Material[],
   cast: Cast,
+  beat?: BeatContext,
 ): Ctx {
   const c = s.controls;
   const prof = effectiveProfile(s.direction, c);
@@ -78,6 +81,7 @@ export function makeCtx(
     scale: SCALES[s.scale] ?? SCALES.minor,
     log: [],
     leaveAnswerSpace: false,
+    song: beat,
   };
 }
 

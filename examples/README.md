@@ -9,6 +9,7 @@ Each folder also contains `preview_*.wav`, an offline render of its arrangement 
 - **C · Ambient Ghost Vocals** – `Ambient Ghost Vocals.vcs` – Hums, breaths & whispers → sparse overlapping layers, long rests, slow change → export layers as stems. (20 events, 4 layers, peak -15.4 dBFS)
 - **D · Vocal Phrase Reconstruction** – `Vocal Phrase Reconstruction.vcs` – Spoken phrase → words → reordered / repeated / removed / fragmented, one anchor word kept recognisable. (25 events, 2 layers, peak -9.4 dBFS)
 - **E · Two-Voice Conversation** – `Two-Voice Conversation.vcs` – Two recordings → call-and-response; switch relation to alternating, interrupt, imitate, overlap… (48 events, 2 layers, peak -7.3 dBFS)
+- **G · Fit to My Beat** – `Fit to My Beat.vcs` – Chord-progression MIDI dropped in → key, chords & rhythm read → “Hook in key, on the chords” recipe → six ideas harmonised to the progression. (27 events, 4 layers, peak -8.4 dBFS)
 - **F · MIDI-Guided Vocal Pattern** – `MIDI-Guided Vocal Pattern.vcs` – Vocal sample + MIDI riff → slices triggered on MIDI timing, velocity accents, pitch by playback rate. (46 events, 1 layers, peak -11.9 dBFS)
 
 ## media/
@@ -19,3 +20,6 @@ Each folder also contains `preview_*.wav`, an offline render of its arrangement 
 - `voice-b.wav` – A brighter second voice with sharp syllables: "hey / yeah / oh-oh / go / ti-ka".
 - `chop-attacks.wav` – Punchy short syllables for rhythmic chops: "ti ka ta pa chi da".
 - `garage-riff.mid` – an 8-bar 2-step style MIDI riff for the MIDI-guided workflow.
+- `beat-am-f-c-g-pads.mid` – demo beat for Beat Fit: Am – F – C – G pads (140 BPM)
+- `beat-cm-arp.mid` – demo beat for Beat Fit: Cm – Ab – Eb – Bb 16th arp (150 BPM)
+- `beat-dorian-stabs.mid` – demo beat for Beat Fit: Dm7 – G7 off-beat stabs (128 BPM)

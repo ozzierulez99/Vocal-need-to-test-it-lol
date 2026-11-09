@@ -11,6 +11,9 @@ import { generateIdeas, composeDirect, regenerateBars, regenerateLayer } from '.
 import { importMidi, importMidiBytes } from '../services/projectService';
 import { demoMidiFile } from '../../core/demo/examples';
 import { guidePitches } from '../../core/midi/midi';
+import { effectiveKey } from '../../core/beat/fit';
+import { keyName } from '../../core/beat/analyze';
+import { setBeatFit, setBeatEnabled, inKeySliceIds, overrideKey } from '../services/beatService';
 
 const MODE_INFO: Record<ComposeMode, string> = {
   melodic: 'Memorable hooks: motif, contour, phrase endings, rests',
@@ -52,8 +55,11 @@ export function GeneratorPanel() {
   const sources = doc.sources.filter((x) => !x.missing);
   const sliceIdsOf = (srcId: string) => doc.slices.filter((x) => x.sourceId === srcId && x.level !== 'phrase').map((x) => x.id);
 
+  const beat = doc.beat;
+  const beatOn = !!beat?.enabled;
   const materialOptions = [
     { value: 'all', label: `All slices (${doc.slices.length})` },
+    ...(beat ? [{ value: 'beat-key', label: `Fits the beat’s key (${inKeySliceIds().length})` }] : []),
     { value: 'favourites', label: `Favourites (${doc.slices.filter((x) => x.favourite).length})` },
     { value: 'selection', label: `Selected in library (${ui.sliceIds.length})` },
     ...sources.map((x) => ({ value: `source:${x.id}`, label: `Source: ${x.name}` })),
@@ -63,6 +69,7 @@ export function GeneratorPanel() {
     let ids: string[] = [];
     if (key === 'favourites') ids = doc.slices.filter((x) => x.favourite).map((x) => x.id);
     else if (key === 'selection') ids = ui.sliceIds.slice();
+    else if (key === 'beat-key') ids = inKeySliceIds();
     else if (key.startsWith('source:')) ids = doc.slices.filter((x) => x.sourceId === key.slice(7)).map((x) => x.id);
     else if (key.startsWith('collection:')) ids = doc.collections.find((c) => c.id === key.slice(11))?.sliceIds.slice() ?? [];
     if (key !== 'all' && !ids.length) return useStore.getState().toast('That material set is empty', 'error');
@@ -76,6 +83,23 @@ export function GeneratorPanel() {
 
   return (
     <aside className="panel" data-testid="generator">
+      {beat && (
+        <Section title="Fitting to your beat">
+          <div className="beat-chip" data-testid="beat-indicator">
+            <Toggle label={beatOn ? `On · ${keyName(effectiveKey(beat).root, effectiveKey(beat).scale)}` : 'Off (beat ignored)'} value={beatOn} onChange={setBeatEnabled} testid="gen-beat-enabled" />
+            {beatOn && (
+              <>
+                <span className="dim" style={{ fontSize: 11 }}>{beat.name} · {beat.chords.map((c) => c.symbol).join(' – ')}</span>
+                <div className="row tight">
+                  <Toggle label="Harmonise" value={beat.fit.harmonize} onChange={(v) => setBeatFit({ harmonize: v })} />
+                  <Select value={beat.fit.rhythm} options={[{ value: 'complement', label: 'Leave room' }, { value: 'follow', label: 'Follow beat' }, { value: 'off', label: 'Ignore rhythm' }]} onChange={(v) => setBeatFit({ rhythm: v as any })} />
+                </div>
+              </>
+            )}
+            <Btn small kind="ghost" onClick={() => useStore.getState().setUI({ view: 'beat' })}>Open Beat Fit →</Btn>
+          </div>
+        </Section>
+      )}
       <Section title="Composition mode">
         <div className="modes">
           {(Object.keys(MODE_LABELS) as ComposeMode[]).map((m) => (
@@ -146,8 +170,8 @@ export function GeneratorPanel() {
           <Select label="Register" value={s.register} options={[{ value: 'low', label: 'Low' }, { value: 'mid', label: 'Mid' }, { value: 'high', label: 'High' }]} onChange={(v) => set({ register: v })} />
         </div>
         <div className="row">
-          <Select label="Key" value={s.keyRoot ?? -1} options={[{ value: -1, label: 'none (natural)' }, ...NOTE_NAMES.map((n, i) => ({ value: i, label: n }))]} onChange={(v) => set({ keyRoot: v < 0 ? null : v })} />
-          <Select label="Scale" value={s.scale} options={(Object.keys(SCALES) as ScaleName[]).map((x) => ({ value: x, label: x }))} onChange={(v) => set({ scale: v })} />
+          <Select label={beatOn ? 'Key (from beat)' : 'Key'} value={beatOn ? effectiveKey(beat!).root : s.keyRoot ?? -1} options={[{ value: -1, label: 'none (natural)' }, ...NOTE_NAMES.map((n, i) => ({ value: i, label: n }))]} onChange={(v) => (beatOn ? v >= 0 && overrideKey(v, effectiveKey(beat!).scale) : set({ keyRoot: v < 0 ? null : v }))} />
+          <Select label="Scale" value={beatOn ? effectiveKey(beat!).scale : s.scale} options={(Object.keys(SCALES) as ScaleName[]).map((x) => ({ value: x, label: x }))} onChange={(v) => (beatOn ? overrideKey(effectiveKey(beat!).root, v) : set({ scale: v }))} />
         </div>
         <Toggle label="Transpose slices to the melody (playback rate)" testid="transpose" value={s.transpose} onChange={(v) => set({ transpose: v })} title="Off: melodies are made by choosing slices with different natural pitches" />
         <Slider label="Rhythmic complexity" value={s.complexity} onChange={(v) => set({ complexity: v })} format={(v) => `${Math.round(v * 100)}`} />

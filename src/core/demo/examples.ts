@@ -7,6 +7,9 @@ import { generate, defaultSettings } from '../compose/engine';
 import { generateCandidates } from '../compose/candidates';
 import { guideFromMidi, parseMidi, buildMidiFile } from '../midi/midi';
 import { DIRECTIONS } from '../compose/directions';
+import { DEMO_BEATS } from './beats';
+import { analyseBeat } from '../beat/analyze';
+import { beatRecipes, effectiveKey, arrangementBarsFor } from '../beat/fit';
 
 /**
  * Demonstration projects for each first-class workflow, built from the bundled
@@ -165,6 +168,29 @@ export const EXAMPLES: Record<string, { title: string; workflow: string; build: 
       const b = ids(p.slicesBySource.get('src-voice-b')!);
       const settings = defaultSettings({ mode: 'conversation', direction: 'dance', seed: 31, bars: 8, voiceA: a, voiceB: b, relation: 'call-response', keyRoot: 9, scale: 'minor' });
       compose(p, settings);
+      return p;
+    },
+  },
+  'fit-to-beat': {
+    title: 'G · Fit to My Beat',
+    workflow: 'Chord-progression MIDI dropped in → key, chords & rhythm read → “Hook in key, on the chords” recipe → six ideas harmonised to the progression.',
+    build: () => {
+      const p = base('Fit to My Beat', ['sung-phrase', 'chop-attacks'], 140);
+      const beat = analyseBeat(DEMO_BEATS['am-f-c-g-pads'].notes(), { name: 'Am – F – C – G pads', bpm: 140 });
+      p.doc.beat = beat;
+      p.doc.sequence.bars = arrangementBarsFor(beat);
+      const recipe = beatRecipes(beat, { sources: 2 }).find((r) => r.id === 'hook')!;
+      const k = effectiveKey(beat);
+      const settings = defaultSettings({ ...recipe.settings, seed: 140, bars: p.doc.sequence.bars, keyRoot: k.root, scale: k.scale, sliceIds: ids(p.slicesBySource.get('src-sung-phrase')!) });
+      const cands = generateCandidates({ settings, slices: p.doc.slices, sources: p.doc.sources, bpm: 140, timeSig: [4, 4], bars: p.doc.sequence.bars, beat });
+      p.doc.candidates = cands;
+      const fav = cands[0];
+      fav.favourite = true;
+      p.doc.sequence.settings = fav.settings;
+      p.doc.sequence.tracks = fav.tracks;
+      p.doc.sequence.events = fav.events;
+      p.doc.sequence.motifs = fav.motifs;
+      p.doc.sequence.loop = { enabled: true, startTick: 0, endTick: p.doc.sequence.bars * 3840 };
       return p;
     },
   },

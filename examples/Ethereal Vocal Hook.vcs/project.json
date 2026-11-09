@@ -1104,7 +1104,7 @@
  ],
  "candidates": [
   {
-   "id": "cand_mw8r91bs_1",
+   "id": "cand_mw8v4o4q_1",
    "label": "Most melodic",
    "profile": "melodic",
    "settings": {
@@ -1964,10 +1964,10 @@
     "→ A'': reverse swell lands on bar 7"
    ],
    "favourite": true,
-   "createdAt": 1794198145528
+   "createdAt": 1794204660266
   },
   {
-   "id": "cand_mw8r91bs_2",
+   "id": "cand_mw8v4o4q_2",
    "label": "Most fragmented",
    "profile": "rhythmic",
    "settings": {
@@ -3714,10 +3714,10 @@
     "Rhythm layer: ostinato X..x.X..|Xx.xX... on “W1” (sustained-vowel) / “W2” (sustained-vowel)"
    ],
    "favourite": false,
-   "createdAt": 1794198145528
+   "createdAt": 1794204660266
   },
   {
-   "id": "cand_mw8r91bs_3",
+   "id": "cand_mw8v4o4q_3",
    "label": "Most surprising",
    "profile": "hypnotic",
    "settings": {
@@ -4487,10 +4487,10 @@
     "→ A''': reverse swell lands on bar 7"
    ],
    "favourite": false,
-   "createdAt": 1794198145528
+   "createdAt": 1794204660266
   },
   {
-   "id": "cand_mw8r91bs_4",
+   "id": "cand_mw8v4o4q_4",
    "label": "Most rhythmic",
    "profile": "spacious",
    "settings": {
@@ -5051,10 +5051,10 @@
     "→ A': deliberate silence before bar 7"
    ],
    "favourite": false,
-   "createdAt": 1794198145528
+   "createdAt": 1794204660267
   },
   {
-   "id": "cand_mw8r91bs_5",
+   "id": "cand_mw8v4o4r_5",
    "label": "Most hypnotic",
    "profile": "fragmented",
    "settings": {
@@ -5878,10 +5878,10 @@
     "→ A'': reverse swell lands on bar 7"
    ],
    "favourite": false,
-   "createdAt": 1794198145528
+   "createdAt": 1794204660267
   },
   {
-   "id": "cand_mw8r91bs_6",
+   "id": "cand_mw8v4o4r_6",
    "label": "Most spacious",
    "profile": "surprising",
    "settings": {
@@ -6535,7 +6535,7 @@
     "→ A': reverse swell lands on bar 7"
    ],
    "favourite": false,
-   "createdAt": 1794198145528
+   "createdAt": 1794204660267
   }
  ],
  "exportSettings": {

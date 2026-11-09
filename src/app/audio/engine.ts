@@ -20,6 +20,16 @@ export interface PlayRequest {
   clickFadeMs: number;
   onTick?: (tick: number) => void;
   onEnd?: () => void;
+  /** Optional beat preview (MIDI notes looped every lengthTicks), never exported. */
+  beat?: () => { notes: { tick: number; length: number; pitch: number; velocity: number }[]; lengthTicks: number; gain: number } | null;
+}
+
+interface SynthNote {
+  time: number;
+  duration: number;
+  pitch: number;
+  velocity: number;
+  gain: number;
 }
 
 class AudioEngine {
@@ -31,6 +41,7 @@ class AudioEngine {
   private auditionNodes: { src: AudioBufferSourceNode; gain: GainNode }[] = [];
   /** When enabled (tests/diagnostics) every scheduled node is recorded relative to the session start. */
   debugSchedule: { eventId: string; at: number; offset: number; duration: number; rate: number }[] | null = null;
+  debugSynth: { pitch: number; at: number; duration: number }[] | null = null;
   /** Last audition (for drawing a moving cursor on the waveform). */
   auditionInfo: { sourceId: string; start: number; end: number; t0: number; dur: number; rate: number; reverse: boolean } | null = null;
 
@@ -244,39 +255,108 @@ class Session {
     const now = this.ctx.currentTime - this.startTime;
     const until = now + ahead;
     if (until <= this.scheduledUntil) return;
-    const seq = this.req.seq();
-    const bpm = seq.bpm;
-    const plan = this.plan();
     const from = this.scheduledUntil;
+    this.forEachDue(this.plan(), from, until, (p, when, skip, maxDur) => this.scheduleEvent(p, when, skip, maxDur));
+    const synth = this.beatNotes();
+    if (synth.length) this.forEachDue(synth, from, until, (n, when, skip, maxDur) => this.scheduleSynth(n, when, skip, maxDur));
+    this.scheduledUntil = until;
+  }
+
+  /**
+   * Calls `cb` for every item (timeline seconds) that must start in the window
+   * [from, until) of elapsed playback time, handling a start from the middle of
+   * an item and loop cycles. `skip` = seconds already elapsed inside the item.
+   */
+  private forEachDue<T extends { time: number; duration: number }>(items: T[], from: number, until: number, cb: (item: T, when: number, skip: number, maxDur: number) => void) {
+    const bpm = this.req.seq().bpm;
     const loop = this.req.loop && this.req.loop.endTick > this.req.loop.startTick ? this.req.loop : null;
     const t0 = ticksToSeconds(this.originTick, bpm);
     if (!loop) {
       const end = ticksToSeconds(this.req.endTick, bpm);
-      for (const p of plan) {
+      for (const p of items) {
         const rel = p.time - t0;
-        if (from === 0 && rel < 0 && p.time + p.duration > t0) this.scheduleEvent(p, this.startTime, t0 - p.time);
-        else if (rel >= from && rel < until && p.time < end) this.scheduleEvent(p, this.startTime + rel, 0);
+        if (from === 0 && rel < 0 && p.time + p.duration > t0) cb(p, this.startTime, t0 - p.time, Infinity);
+        else if (rel >= from && rel < until && p.time < end) cb(p, this.startTime + rel, 0, Infinity);
       }
-    } else {
-      const ls = ticksToSeconds(loop.startTick, bpm);
-      const le = ticksToSeconds(loop.endTick, bpm);
-      const len = le - ls;
-      // first (partial) pass from origin to loop end, then full cycles
-      for (const p of plan) {
-        if (p.time < ls || p.time >= le) continue;
-        const firstRel = p.time - t0; // in first pass
-        if (from === 0 && firstRel < 0 && p.time + p.duration > t0) this.scheduleEvent(p, this.startTime, t0 - p.time, le - p.time);
-        // occurrence k: k = 0 is the first pass (from the origin), k ≥ 1 are full loop cycles
-        const k0 = Math.max(firstRel >= 0 ? 0 : 1, Math.floor((from - (le - t0) - (p.time - ls)) / len) + 1);
-        for (let k = k0; k < k0 + 10000; k++) {
-          const occ = k === 0 ? firstRel : le - t0 + (k - 1) * len + (p.time - ls);
-          if (occ >= until) break;
-          if (occ >= from) this.scheduleEvent(p, this.startTime + occ, 0, le - p.time);
-        }
+      return;
+    }
+    const ls = ticksToSeconds(loop.startTick, bpm);
+    const le = ticksToSeconds(loop.endTick, bpm);
+    const len = le - ls;
+    // first (partial) pass from origin to loop end, then full cycles
+    for (const p of items) {
+      if (p.time < ls || p.time >= le) continue;
+      const firstRel = p.time - t0;
+      if (from === 0 && firstRel < 0 && p.time + p.duration > t0) cb(p, this.startTime, t0 - p.time, le - p.time);
+      // occurrence k: k = 0 is the first pass (from the origin), k ≥ 1 are full loop cycles
+      const k0 = Math.max(firstRel >= 0 ? 0 : 1, Math.floor((from - (le - t0) - (p.time - ls)) / len) + 1);
+      for (let k = k0; k < k0 + 10000; k++) {
+        const occ = k === 0 ? firstRel : le - t0 + (k - 1) * len + (p.time - ls);
+        if (occ >= until) break;
+        if (occ >= from) cb(p, this.startTime + occ, 0, le - p.time);
       }
     }
-    this.scheduledUntil = until;
   }
+
+  private beatCache: { key: unknown; bpm: number; end: number; notes: SynthNote[] } | null = null;
+
+  /** The beat's MIDI tiled over the arrangement, in seconds (for the preview synth). */
+  private beatNotes(): SynthNote[] {
+    const b = this.req.beat?.();
+    if (!b) return [];
+    const bpm = this.req.seq().bpm;
+    if (this.beatCache && this.beatCache.key === b && this.beatCache.bpm === bpm && this.beatCache.end === this.req.endTick) return this.beatCache.notes;
+    const notes: SynthNote[] = [];
+    for (let base = 0; base < this.req.endTick; base += b.lengthTicks)
+      for (const n of b.notes) {
+        const tick = base + n.tick;
+        if (tick >= this.req.endTick) continue;
+        notes.push({ time: ticksToSeconds(tick, bpm), duration: ticksToSeconds(Math.min(n.length, this.req.endTick - tick), bpm), pitch: n.pitch, velocity: n.velocity, gain: b.gain });
+      }
+    this.beatCache = { key: b, bpm, end: this.req.endTick, notes };
+    return notes;
+  }
+
+  private beatBus: GainNode | null = null;
+
+  /** Simple soft synth voice: two detuned triangles through a low-pass, ADSR on a gain. */
+  private scheduleSynth(n: SynthNote, when: number, skip: number, maxDur: number) {
+    const ctx = this.ctx;
+    const dur = Math.min(n.duration, maxDur) - skip;
+    if (dur <= 0.005) return;
+    if (!this.beatBus) {
+      this.beatBus = ctx.createGain();
+      const lp = ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 2400;
+      this.beatBus.connect(lp).connect(this.master);
+    }
+    const t = Math.max(when, ctx.currentTime);
+    const f = 440 * Math.pow(2, (n.pitch - 69) / 12);
+    const g = ctx.createGain();
+    const peak = dbToGain(n.gain) * (0.25 + 0.5 * n.velocity) * 0.35;
+    const rel = Math.min(0.12, dur * 0.4);
+    g.gain.setValueAtTime(0, t);
+    g.gain.linearRampToValueAtTime(peak, t + Math.min(0.012, dur / 3));
+    g.gain.linearRampToValueAtTime(peak * 0.6, t + Math.min(0.25, dur - rel));
+    g.gain.setValueAtTime(peak * 0.6, t + dur - rel);
+    g.gain.linearRampToValueAtTime(0, t + dur);
+    g.connect(this.beatBus);
+    for (const det of [-4, 4]) {
+      const o = ctx.createOscillator();
+      o.type = 'triangle';
+      o.frequency.value = f;
+      o.detune.value = det;
+      o.connect(g);
+      o.start(t);
+      o.stop(t + dur + 0.02);
+      this.synthNodes.add(o);
+      o.onended = () => this.synthNodes.delete(o);
+    }
+    this.engine.debugSynth?.push({ pitch: n.pitch, at: t - this.startTime, duration: dur });
+  }
+
+  private synthNodes = new Set<OscillatorNode>();
 
   private scheduleEvent(p: PlannedEvent, when: number, skip: number, maxDur = Infinity) {
     const data = this.engineData(p.sourceId);
@@ -332,6 +412,14 @@ class Session {
       }
     }
     this.nodes.clear();
+    for (const o of this.synthNodes) {
+      try {
+        o.stop(now + 0.015);
+      } catch {
+        /* not started */
+      }
+    }
+    this.synthNodes.clear();
     setTimeout(() => {
       try {
         this.master.disconnect();

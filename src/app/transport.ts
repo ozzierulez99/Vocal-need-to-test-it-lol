@@ -22,6 +22,14 @@ function target() {
   return doc.sequence;
 }
 
+// stable object identity for the preview so the engine can cache the tiled notes
+let previewKey: { src: unknown; gain: number; v: { notes: any[]; lengthTicks: number; gain: number } } | null = null;
+function stablePreview(b: { notes: any[]; lengthTicks: number; gain: number }, src: unknown) {
+  if (previewKey && previewKey.src === src && previewKey.gain === b.gain) return previewKey.v;
+  previewKey = { src, gain: b.gain, v: b };
+  return b;
+}
+
 export function play(fromTick?: number) {
   const { doc } = st();
   for (const [id, a] of st().rt.audio) engine.setAudio(id, a);
@@ -36,6 +44,10 @@ export function play(fromTick?: number) {
     loop,
     endTick: end,
     clickFadeMs: doc.clickFadeMs,
+    beat: () => {
+      const b = st().doc.beat;
+      return b && b.enabled && b.fit.preview ? stablePreview({ notes: b.notes, lengthTicks: b.lengthTicks, gain: b.fit.previewGain }, b.notes) : null;
+    },
     onTick: (t) => useStore.setState({ positionTick: t, playing: true }),
     onEnd: () => useStore.setState({ playing: false, positionTick: 0 }),
   });

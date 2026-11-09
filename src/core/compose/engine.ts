@@ -8,6 +8,7 @@ import type {
   SourceAudio,
   Track,
   LockedRest,
+  BeatContext,
 } from '../types';
 import { buildMaterial, castMaterial, describeMaterial, type Material } from './material';
 import { makeCtx, type Ctx, type Note } from './context';
@@ -18,6 +19,8 @@ import { writePhraseLead, writeMicroLead, writeMidiLead, writeConversation } fro
 import { DIRECTIONS, FEEL_LABELS } from './directions';
 import { ticksPerBar } from '../time';
 import { Rng } from '../rng';
+import { effectiveKey, harmonize } from '../beat/fit';
+import { keyName } from '../beat/analyze';
 
 export const MODE_LABELS: Record<GeneratorSettings['mode'], string> = {
   melodic: 'Melodic Chop Composer',
@@ -54,6 +57,8 @@ export interface GenerateInput {
   existing?: Pick<Sequence, 'tracks' | 'events' | 'motifs' | 'lockedBars' | 'lockedRests'>;
   /** Regenerate only inside this scope; everything else in `existing` is kept. */
   scope?: { startBar?: number; endBar?: number; trackIds?: string[] };
+  /** Beat context: key/scale, chords and rhythm of the user's beat. */
+  beat?: BeatContext;
 }
 
 export interface GenerateOutput {
@@ -130,7 +135,9 @@ function resolveMotif(ctx: Ctx, input: GenerateInput, kind: 'melodic' | 'rhythmi
 }
 
 export function generate(input: GenerateInput): GenerateOutput {
-  const s = input.settings;
+  const beat = input.beat?.enabled ? input.beat : undefined;
+  // the beat's key/scale drive all pitch decisions
+  const s = beat ? { ...input.settings, keyRoot: effectiveKey(beat).root, scale: effectiveKey(beat).scale } : input.settings;
   const sliceFilter = s.sliceIds.length ? new Set(s.sliceIds) : null;
   const usable = input.slices.filter((sl) => !sliceFilter || sliceFilter.has(sl.id) || s.mode === 'conversation');
   const allMats = buildMaterial(usable, input.sources, s.controls);
@@ -142,7 +149,7 @@ export function generate(input: GenerateInput): GenerateOutput {
   }
   if (!mats.length) throw new Error('No usable slices: import audio and create slices first (or check that sources are not missing).');
   const cast = castMaterial(new Rng(`${s.seed}|cast`), mats, s.controls);
-  const ctx = makeCtx(s, input.bpm, input.timeSig, mats, cast);
+  const ctx = makeCtx(s, input.bpm, input.timeSig, mats, cast, beat);
   const form = planForm(ctx, s.mode);
   const layersWanted = (s.layers.length ? s.layers : defaultLayers(s.mode, s)).slice();
   if (s.mode !== 'conversation' && !layersWanted.includes('lead')) layersWanted.unshift('lead');
@@ -150,6 +157,7 @@ export function generate(input: GenerateInput): GenerateOutput {
     `${MODE_LABELS[s.mode]} · ${DIRECTIONS[s.direction].label} · ${FEEL_LABELS[ctx.feel]} feel · seed ${s.seed}`,
     `Form: ${describeForm(form)}`,
   ];
+  if (beat) head.push(`Fitted to beat “${beat.name}”: ${keyName(effectiveKey(beat).root, effectiveKey(beat).scale)}, ${beat.chords.map((c) => c.symbol).join('–')}`);
   const layers: Layer[] = [];
   const motifs: Motif[] = [];
   let leadNotes: Note[] = [];
@@ -208,6 +216,21 @@ export function generate(input: GenerateInput): GenerateOutput {
     leadNotes = applyCuts(leadNotes, transitionCuts);
     for (const l of extra) if (l.role === 'response' || l.role === 'rhythm') l.notes = applyCuts(l.notes, transitionCuts);
     layers.push({ key: 'lead', role: 'lead', name: s.mode === 'phrase' ? 'Reconstructed phrase' : s.mode === 'ghost' ? 'Ghost hook' : TRACK_NAMES.lead, notes: leadNotes }, ...extra);
+  }
+
+  if (beat && beat.fit.harmonize && s.transpose) {
+    // harmonise pitched material to the chord underneath (a preserved motif stays exactly as it is)
+    const preserved = motifs.find((m) => m.important && m.protection === 'preserve');
+    let n = 0;
+    for (const l of layers) {
+      if (l.role === 'rhythm' || l.role === 'transition') continue;
+      n += harmonize(l.notes, beat, (id) => ctx.matById.get(id)?.pitch ?? null, {
+        beatTicks: ctx.beat,
+        role: l.role,
+        skip: (x) => !!preserved && x.motifId === preserved.id && x.gesture === 'motif',
+      });
+    }
+    if (n) ctx.log.push(`Harmonised ${n} note(s) to the chord underneath (playback-rate pitch)`);
   }
 
   const result = assemble(ctx, input, layers, motifs);

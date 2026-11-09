@@ -14,7 +14,7 @@ export interface ParsedMidi {
   name: string;
   bpm?: number;
   timeSig?: [number, number];
-  tracks: { index: number; name: string; notes: MidiNote[] }[];
+  tracks: { index: number; name: string; notes: MidiNote[]; percussion: boolean }[];
 }
 
 /** Parse a standard MIDI file (type 0 or 1). Ticks are rescaled to the app's PPQ. */
@@ -32,6 +32,7 @@ export function parseMidi(bytes: Uint8Array, name = 'MIDI'): ParsedMidi {
     .map((t, index) => ({
       index,
       name: t.name || `Track ${index + 1}`,
+      percussion: t.channel === 9 || !!(t.instrument as any)?.percussion,
       notes: t.notes
         .map((n) => ({ tick: Math.round(n.ticks * scale), length: Math.max(1, Math.round(n.durationTicks * scale)), pitch: n.midi, velocity: n.velocity }))
         .sort((a, b) => a.tick - b.tick || a.pitch - b.pitch),
