@@ -322,9 +322,9 @@ export function SliceView() {
             onSelect={(ids, add) => setUI({ sliceIds: add ? Array.from(new Set([...ui.sliceIds, ...ids])) : ids })}
             onEdgeDragStart={() => useStore.getState().beginGesture()}
             onEdgeDrag={(id, patch) => useStore.getState().gesture((d) => { const s = d.slices.find((x) => x.id === id); if (s) Object.assign(s, patch); })}
-            onEdgeDragEnd={(id) => {
+            onEdgeDragEnd={(id, moved) => {
               const s = useStore.getState().doc.slices.find((x) => x.id === id);
-              if (s) useStore.getState().gesture((d) => { const t = d.slices.find((x) => x.id === id); if (t) t.analysis = analysisFor({ ...s, analysis: undefined }).analysis as any; });
+              if (s && moved) useStore.getState().gesture((d) => { const t = d.slices.find((x) => x.id === id); if (t) t.analysis = analysisFor({ ...s, analysis: undefined }).analysis as any; });
               useStore.getState().endGesture('Adjust slice boundary');
             }}
             onAudition={(s) => auditionSlice(s.id)}

@@ -29,7 +29,7 @@ interface Props {
   onSelect: (ids: string[], additive: boolean) => void;
   onEdgeDragStart: () => void;
   onEdgeDrag: (id: string, patch: { start?: number; end?: number }) => void;
-  onEdgeDragEnd: (id: string) => void;
+  onEdgeDragEnd: (id: string, moved: boolean) => void;
   onAudition: (s: Slice) => void;
   zoomCmd: { n: number; kind: 'in' | 'out' | 'fit' | 'region' } | null;
 }
@@ -37,7 +37,7 @@ interface Props {
 type Drag =
   | { kind: 'region'; anchor: number; moved: boolean }
   | { kind: 'marker'; index: number }
-  | { kind: 'edge'; id: string; edge: 'start' | 'end'; min: number; max: number }
+  | { kind: 'edge'; id: string; edge: 'start' | 'end'; min: number; max: number; moved: boolean }
   | { kind: 'pan'; x: number; start: number }
   | null;
 
@@ -177,9 +177,6 @@ export function Waveform(p: Props) {
       const y = RULER + WAVE + 4 + i * LANE;
       g.fillStyle = i % 2 ? '#101217' : '#0e1015';
       g.fillRect(0, y, width, LANE);
-      g.fillStyle = '#5c6475';
-      g.font = '9.5px system-ui';
-      g.fillText(lvl.toUpperCase(), 4, y + 15);
       for (const s of p.slices.filter((x) => x.level === lvl)) {
         const a = xOf(s.start);
         const b = xOf(s.end);
@@ -196,6 +193,16 @@ export function Waveform(p: Props) {
           g.fillRect(b - 2, y + 3, 2, LANE - 6);
         }
       }
+    });
+    // lane labels on top of the slices
+    SLICE_LEVELS.forEach((lvl, i) => {
+      const y = RULER + WAVE + 4 + i * LANE;
+      g.font = '600 9px system-ui';
+      const w = g.measureText(lvl.toUpperCase()).width + 8;
+      g.fillStyle = '#0b0c10cc';
+      g.fillRect(width - w - 4, y + 6, w, 14);
+      g.fillStyle = '#8b93a5';
+      g.fillText(lvl.toUpperCase(), width - w, y + 16.5);
     });
     // audition cursor
     const ai = engine.auditionInfo;
@@ -273,7 +280,7 @@ export function Waveform(p: Props) {
       }
       p.onSelect([h.s.id], false);
       p.onEdgeDragStart();
-      drag.current = { kind: 'edge', id: h.s.id, edge: h.edge, min, max };
+      drag.current = { kind: 'edge', id: h.s.id, edge: h.edge, min, max, moved: false };
       return;
     }
     p.onSelect([h.s.id], e.shiftKey || e.metaKey || e.ctrlKey);
@@ -303,6 +310,7 @@ export function Waveform(p: Props) {
     } else if (d.kind === 'edge') {
       const s = p.slices.find((x) => x.id === d.id);
       if (!s) return;
+      d.moved = true;
       if (d.edge === 'start') p.onEdgeDrag(d.id, { start: Math.max(d.min, Math.min(f, s.end - MIN_SLICE_FRAMES)) });
       else p.onEdgeDrag(d.id, { end: Math.min(d.max, Math.max(f, s.start + MIN_SLICE_FRAMES)) });
     }
@@ -318,7 +326,7 @@ export function Waveform(p: Props) {
       p.onRegion(null);
     }
     if (d.kind === 'marker') p.onMarkers(p.markers.slice().sort((a, b) => a - b));
-    if (d.kind === 'edge') p.onEdgeDragEnd(d.id);
+    if (d.kind === 'edge') p.onEdgeDragEnd(d.id, d.moved);
   };
 
   const onWheel = (e: React.WheelEvent) => {

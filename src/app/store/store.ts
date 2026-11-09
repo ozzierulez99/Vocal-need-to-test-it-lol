@@ -129,7 +129,9 @@ export const useStore = create<AppState>((set, get) => ({
     gestureSnapshot = get().doc;
   },
   gesture: (recipe) => {
-    set({ doc: produce(get().doc, recipe), dirty: true });
+    const doc = get().doc;
+    const next = produce(doc, recipe);
+    if (next !== doc) set({ doc: next, dirty: true });
   },
   endGesture: () => {
     const snap = gestureSnapshot;
@@ -137,7 +139,11 @@ export const useStore = create<AppState>((set, get) => ({
     if (!snap || snap === get().doc) return;
     set({ past: [...get().past.slice(-HISTORY_LIMIT), snap], future: [] });
   },
-  setPrefs: (recipe) => set({ doc: produce(get().doc, recipe), dirty: true }),
+  setPrefs: (recipe) => {
+    const doc = get().doc;
+    const next = produce(doc, recipe);
+    if (next !== doc) set({ doc: next, dirty: true });
+  },
   undo: () => {
     const { past, doc, future } = get();
     if (!past.length) return;

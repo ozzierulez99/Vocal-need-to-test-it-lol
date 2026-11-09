@@ -259,3 +259,21 @@ test.describe('core workflows', () => {
     expect(used.every((u) => allowed.includes(u))).toBe(true);
   });
 });
+
+test('imports MP3 and FLAC, explains invalid files', async ({ page }) => {
+  await fresh(page);
+  const fx = (n: string) => `e2e/fixtures/${n}`;
+  for (const f of ['chops.mp3', 'spoken.flac', 'broken.wav']) {
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByTestId('import-audio').first().click();
+    await (await chooser).setFiles(fx(f));
+    await page.waitForTimeout(400);
+  }
+  const srcs = await state<any[]>(page, '(s) => s.doc.sources.map(x => ({ name: x.name, ch: x.channelCount, sec: x.frames / x.sampleRate }))');
+  expect(srcs.map((s) => s.name)).toEqual(['chops', 'spoken']);
+  expect(srcs[0].ch).toBe(2);
+  expect(srcs[0].sec).toBeGreaterThan(2.4);
+  expect(srcs[1].sec).toBeGreaterThan(3);
+  await expect(page.getByTestId('toasts')).toContainText('Could not import “broken.wav”');
+  expect(await state<number>(page, '(s) => s.doc.slices.length')).toBeGreaterThan(4);
+});

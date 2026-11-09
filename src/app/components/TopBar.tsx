@@ -31,8 +31,10 @@ function ProjectMenu() {
     window.addEventListener('mousedown', close);
     return () => window.removeEventListener('mousedown', close);
   }, []);
+  const [diskExamples, setDiskExamples] = useState<Recent[]>([]);
   useEffect(() => {
     if (open === 'recent') void platform.recent().then(setRecent);
+    if (open === 'examples') void platform.examples().then(setDiskExamples);
   }, [open]);
   const guardDirty = () => !useStore.getState().dirty || window.confirm('Discard unsaved changes to the current project?');
   const item = (label: string, fn: () => void, kbd?: string, testid?: string) => (
@@ -74,6 +76,13 @@ function ProjectMenu() {
         <div className="menu-pop">
           <div className="label">Workflow examples (synthetic vocals)</div>
           {Object.entries(EXAMPLES).map(([k, e]) => item(e.title, () => guardDirty() && loadExample(k), undefined, `example-${k}`))}
+          {diskExamples.length > 0 && (
+            <>
+              <hr />
+              <div className="label">Example project folders on disk</div>
+              {diskExamples.map((r) => item(r.name, () => guardDirty() && openProject(r.location)))}
+            </>
+          )}
         </div>
       )}
       {open === 'demo' && (

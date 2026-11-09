@@ -10,7 +10,7 @@ import * as path from 'path';
 const E2E_DIR = process.env.VCS_E2E_DIR; // test hook: replaces native dialogs
 let win: BrowserWindow | null = null;
 
-const AUDIO_EXT = ['wav', 'wave', 'mp3', 'flac', 'ogg', 'oga', 'm4a', 'aac', 'aif', 'aiff', 'webm'];
+const AUDIO_EXT = ['wav', 'wave', 'mp3', 'flac', 'ogg', 'oga', 'opus', 'm4a', 'aac', 'webm'];
 
 function recentFile() {
   return path.join(app.getPath('userData'), 'recent.json');

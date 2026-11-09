@@ -1,4 +1,9 @@
-import { Midi } from '@tonejs/midi';
+import * as ToneMidi from '@tonejs/midi';
+import type { Midi as MidiType } from '@tonejs/midi';
+
+// @tonejs/midi ships CJS + ESM builds; resolve the class under either interop.
+const Midi: typeof MidiType = (ToneMidi as any).Midi ?? (ToneMidi as any).default?.Midi;
+type Midi = MidiType;
 import type { MidiGuide, MidiNote, SeqEvent, Slice, SourceAudio, Track } from '../types';
 import { PPQ } from '../types';
 import { midiToName, semitonesToRate, ticksToSeconds } from '../time';

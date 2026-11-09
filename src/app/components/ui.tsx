@@ -56,22 +56,24 @@ export function NumberField({ label, value, onChange, min, max, step = 1, testid
   return (
     <label className="field number">
       {label && <span>{label}</span>}
-      <input
-        data-testid={testid}
-        style={width ? { width } : undefined}
-        type="number"
-        value={draft}
-        step={step}
-        min={min}
-        max={max}
-        onChange={(e) => setDraft(e.target.value)}
-        onBlur={commit}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
-          if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
-        }}
-      />
-      {suffix && <i className="suffix">{suffix}</i>}
+      <div className={`num-wrap ${suffix ? 'has-suffix' : ''}`}>
+        <input
+          data-testid={testid}
+          style={width ? { width: width + (suffix ? 30 : 0) } : undefined}
+          type="number"
+          value={draft}
+          step={step}
+          min={min}
+          max={max}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') (e.target as HTMLInputElement).blur();
+            if (!e.ctrlKey && !e.metaKey) e.stopPropagation();
+          }}
+        />
+        {suffix && <i className="suffix">{suffix}</i>}
+      </div>
     </label>
   );
 }

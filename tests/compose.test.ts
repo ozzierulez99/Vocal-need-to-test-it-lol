@@ -285,3 +285,33 @@ describe('candidate exploration', () => {
     expect(r.slice(4)).toEqual(ev.slice(4));
   });
 });
+
+describe('other meters and edge cases', () => {
+  for (const sig of [[3, 4], [7, 8], [6, 8], [5, 4]] as [number, number][]) {
+    it(`composes in ${sig[0]}/${sig[1]} without leaving the arrangement`, () => {
+      const bar = (960 * 4 * sig[0]) / sig[1];
+      for (const m of MODES) {
+        const out = generate(input(m, { timeSig: sig }));
+        expect(out.events.length).toBeGreaterThan(0);
+        for (const e of out.events) expect(e.tick).toBeLessThan(8 * bar);
+      }
+    });
+  }
+  it('works with a single slice', () => {
+    const one = [slicesOf('sung-phrase')[3]];
+    for (const mode of ['melodic', 'rhythmic', 'ghost', 'microchop', 'phrase'] as const) {
+      const out = generate(input({ mode, sliceIds: one }));
+      expect(out.events.length).toBeGreaterThan(0);
+      expect(out.events.every((e) => e.sliceId === one[0])).toBe(true);
+    }
+  });
+  it('explains missing material clearly', () => {
+    expect(() => generate(input({ mode: 'melodic', sliceIds: ['nope'] }))).toThrow(/No usable slices/);
+  });
+  it('one-bar arrangements and long phrases', () => {
+    const a = generate(input({ ...MODES[0], bars: 1, phraseBars: 4 }));
+    expect(a.events.every((e) => e.tick < BAR)).toBe(true);
+    const b = generate(input({ ...MODES[1], bars: 32, phraseBars: 4 }));
+    expect(Math.max(...b.events.map((e) => e.tick))).toBeGreaterThan(24 * BAR);
+  });
+});

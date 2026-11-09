@@ -200,8 +200,17 @@ export function importMidiBytes(bytes: Uint8Array, name: string) {
   try {
     const parsed = parseMidi(bytes, name.replace(/\.midi?$/i, ''));
     const guide = guideFromMidi(parsed);
+    const empty = !st().doc.sequence.events.length;
     st().commit('Import MIDI', (d) => {
       d.midiGuides.push(guide);
+      // a fresh arrangement adopts the MIDI tempo and length; otherwise the current tempo is kept
+      if (empty) {
+        if (parsed.bpm) d.sequence.bpm = Math.round(parsed.bpm * 100) / 100;
+        const barT = (d.sequence.timeSig[0] * 3840) / d.sequence.timeSig[1];
+        const end = Math.max(...guide.notes.map((n) => n.tick + n.length));
+        d.sequence.bars = Math.min(64, Math.max(d.sequence.bars, Math.ceil(end / barT)));
+        d.sequence.loop = { ...d.sequence.loop, startTick: 0, endTick: d.sequence.bars * barT };
+      }
     });
     actions.setSettings({ mode: 'midi', midi: guide });
     st().toast(`MIDI “${guide.name}”: ${guide.notes.length} notes${parsed.bpm ? ` at ${Math.round(parsed.bpm)} BPM` : ''}`, 'success');

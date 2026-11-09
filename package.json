@@ -17,12 +17,14 @@
     "start": "electron .",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "playwright test --project web",
     "examples": "tsx scripts/make-examples.ts",
-    "package": "npm run build && electron-builder --linux dir",
+    "package": "npm run build && electron-builder --linux dir -c.electronDist=node_modules/electron/dist",
     "package:linux": "npm run build && electron-builder --linux AppImage",
     "package:win": "npm run build && electron-builder --win nsis",
-    "package:mac": "npm run build && electron-builder --mac dmg"
+    "package:mac": "npm run build && electron-builder --mac dmg",
+    "test:electron": "npm run build && xvfb-run -a playwright test --project electron",
+    "test:all": "npm run typecheck && npm test && npm run test:e2e"
   },
   "build": {
     "appId": "com.vocalchopstudio.app",
@@ -54,7 +56,8 @@
       "target": [
         "nsis"
       ]
-    }
+    },
+    "asarUnpack": []
   },
   "dependencies": {
     "@tonejs/midi": "^2.0.28",
