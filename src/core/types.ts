@@ -312,6 +312,8 @@ export interface MidiGuide {
   rootPitch: number;
   useVelocity: boolean;
   useDuration: boolean;
+  /** When set, the guide repeats every `loopTicks` (e.g. a beat loop used as the guide). */
+  loopTicks?: number;
 }
 
 /* ───────────── Beat context (“Fit to my beat”) ───────────── */

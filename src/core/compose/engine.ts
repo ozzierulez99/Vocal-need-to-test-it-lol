@@ -223,7 +223,6 @@ export function generate(input: GenerateInput): GenerateOutput {
     const preserved = motifs.find((m) => m.important && m.protection === 'preserve');
     let n = 0;
     for (const l of layers) {
-      if (l.role === 'rhythm' || l.role === 'transition') continue;
       n += harmonize(l.notes, beat, (id) => ctx.matById.get(id)?.pitch ?? null, {
         beatTicks: ctx.beat,
         role: l.role,

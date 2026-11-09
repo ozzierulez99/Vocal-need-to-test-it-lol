@@ -175,6 +175,8 @@ Also verified manually during development: the packaged Linux build (`npm run pa
 * **F · MIDI-Guided Vocal Pattern** – sharp syllables triggered by a 2-step MIDI riff with velocity accents and rate-based pitch.
 * **G · Fit to My Beat** – the Am–F–C–G demo beat loaded as beat context; six “Hook in key, on the chords” ideas harmonised to the progression.
 
+**Showcase (`examples/showcase/`).** Four acapellas I generated with espeak-ng: a sung “Tonight” in E minor (tuned note by note with rubberband), a spoken phrase, whispers & hums, and ad-libs. They were run through the app's pipeline over the three demo beats, producing 8 ideas across 7 scenarios. Each idea has a vocals-only export and a with-beat listening version (MP3), plus openable projects with all six ideas in the Idea Lab. Regenerate with `npm run showcase` (needs `espeak-ng` and `ffmpeg` with rubberband). The voices are robotic TTS, not human singers.
+
 The same examples are available inside the app (*Project ▸ Example projects* or the welcome screen); the desktop app also opens the on-disk folders. The demo voices are produced by a small formant synthesiser (`src/core/demo/synthVoice.ts`) — vocal-*like* material with vowels, consonant bursts, breaths and hums, not real singing or speech.
 
 ## 11. Instructions

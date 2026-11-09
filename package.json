@@ -24,7 +24,8 @@
     "package:win": "npm run build && electron-builder --win nsis",
     "package:mac": "npm run build && electron-builder --mac dmg",
     "test:electron": "npm run build && xvfb-run -a playwright test --project electron",
-    "test:all": "npm run typecheck && npm test && npm run test:e2e"
+    "test:all": "npm run typecheck && npm test && npm run test:e2e",
+    "showcase": "tsx scripts/showcase/make-acapellas.ts examples/showcase/acapellas && tsx scripts/showcase/run-showcase.ts examples/showcase/acapellas examples/showcase"
   },
   "build": {
     "appId": "com.vocalchopstudio.app",

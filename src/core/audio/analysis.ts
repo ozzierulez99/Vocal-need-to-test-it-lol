@@ -241,7 +241,7 @@ export function analyseRegion(audio: AudioData, start: number, end: number, glob
     attack,
     sustain,
     noisiness,
-    pitch: pitch.confidence > 0.55 ? pitch.midi : null,
+    pitch: pitch.confidence > 0.68 && noisiness < 0.5 ? pitch.midi : null,
     pitchConfidence: pitch.confidence,
     intensity,
   };

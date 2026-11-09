@@ -104,7 +104,7 @@ export function applyRecipe(r: BeatRecipe, run = true) {
   if (r.settings.mode === 'midi') {
     // the beat's own MIDI becomes the trigger guide
     const pitches = beat.notes.map((n) => n.pitch).sort((a, b) => a - b);
-    patch.midi = { name: `${beat.name} (beat)`, notes: beat.notes, bpm: beat.bpm, mapping: 'rhythm-cycle', pitchMap: {}, usePitch: true, rootPitch: pitches[Math.floor(pitches.length / 2)] ?? 60, useVelocity: true, useDuration: true };
+    patch.midi = { name: `${beat.name} (beat)`, notes: beat.notes, bpm: beat.bpm, mapping: 'rhythm-cycle', pitchMap: {}, usePitch: true, rootPitch: pitches[Math.floor(pitches.length / 2)] ?? 60, useVelocity: true, useDuration: true, loopTicks: beat.lengthTicks };
   }
   if (r.settings.mode === 'conversation') {
     const srcs = doc.sources.filter((s) => !s.missing);

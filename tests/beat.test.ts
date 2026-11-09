@@ -231,3 +231,33 @@ describe('vocal fit and recipes', () => {
     expect(l.doc.beat).toEqual(doc.beat);
   });
 });
+
+describe('harmonisation covers every layer', () => {
+  it('rhythm chops over a beat in another key stay in the beat’s key', () => {
+    const { slices, sources } = demoProject();
+    const cm = analyseBeat(arpProgression([[60, 'min'], [56, 'maj'], [63, 'maj'], [58, 'maj']]), { name: 'cm', bpm: 150 });
+    const out = generate({ settings: defaultSettings({ mode: 'rhythmic', direction: 'playful', seed: 9, sliceIds: slicesOf('sung-phrase'), layers: ['lead', 'rhythm', 'transition'] }), slices, sources, bpm: 150, timeSig: [4, 4], beat: cm });
+    const scale = new Set([0, 2, 3, 5, 7, 8, 10]);
+    let pitched = 0;
+    for (const e of out.events) {
+      const s = slices.find((x) => x.id === e.sliceId)!;
+      const p = slicePitch(s, sources.find((x) => x.id === s.sourceId));
+      if (p === null) continue;
+      pitched++;
+      expect(scale.has(((Math.round(p + e.semitones) % 12) + 12) % 12)).toBe(true);
+    }
+    expect(pitched).toBeGreaterThan(10);
+    expect(out.events.some((e) => e.role === 'rhythm')).toBe(true);
+  });
+});
+
+describe('beat loop as MIDI guide', () => {
+  it('repeats a looping guide across the whole arrangement', () => {
+    const { slices, sources } = demoProject();
+    const arp = analyseBeat(arpProgression([[60, 'min'], [56, 'maj']]), { name: 'a', bpm: 150 }); // 2-bar loop
+    const guide = { name: 'arp', notes: arp.notes, mapping: 'rhythm-cycle' as const, pitchMap: {}, usePitch: true, rootPitch: 60, useVelocity: true, useDuration: true, loopTicks: arp.lengthTicks };
+    const out = generate({ settings: defaultSettings({ mode: 'midi', midi: guide, bars: 8, sliceIds: slicesOf('chop-attacks') }), slices, sources, bpm: 150, timeSig: [4, 4], beat: arp });
+    expect(out.events.length).toBe(arp.notes.length * 4);
+    expect(Math.max(...out.events.map((e) => e.tick))).toBeGreaterThan(7 * BAR);
+  });
+});

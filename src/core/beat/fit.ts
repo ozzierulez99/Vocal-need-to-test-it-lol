@@ -91,7 +91,8 @@ export interface HarmonizeNote {
 
 /**
  * Nudge pitched vocal notes toward the harmony: strong notes (on the beat, accented
- * or long) snap to a tone of the chord underneath, others to the key's scale.
+ * or long) snap to a tone of the chord underneath, others – and every rhythm or
+ * transition chop – to the key's scale.
  * Only small moves are made so melodic shapes survive; realised as playback-rate
  * transposition like every other pitch change.
  */
@@ -111,7 +112,9 @@ export function harmonize(
     if (natural === null) continue;
     const p = natural + n.semitones;
     const chord = chordAt(b, n.tick);
-    const strong = n.tick % opts.beatTicks === 0 || n.velocity >= 0.85 || n.length >= opts.beatTicks || opts.role === 'atmosphere';
+    // rhythm chops and transitions only need to stay in key; melodic layers also follow the chords
+    const scaleOnly = opts.role === 'rhythm' || opts.role === 'transition';
+    const strong = !scaleOnly && (n.tick % opts.beatTicks === 0 || n.velocity >= 0.85 || n.length >= opts.beatTicks || opts.role === 'atmosphere');
     const targets = strong && chord && chord.quality !== 'note' ? new Set(chord.pcs) : scale;
     let best: number | null = null;
     for (let d = 0; d <= maxMove; d++) {
@@ -173,7 +176,10 @@ export function vocalKeyFit(slices: Slice[], sources: SourceAudio[], b: BeatCont
     for (const { p, w } of pitches) if (scale.has(((Math.round(p + sh) % 12) + 12) % 12)) sc += w;
     if (sc > best.score + 1e-9 || (Math.abs(sc - best.score) < 1e-9 && Math.abs(sh) < Math.abs(best.shift))) best = { shift: sh, score: sc };
   }
-  res.suggestedShift = best.shift;
+  let atZero = 0;
+  for (const { p, w } of pitches) if (scale.has(((Math.round(p) % 12) + 12) % 12)) atZero += w;
+  // only suggest moving the vocal when that clearly improves the fit
+  res.suggestedShift = best.score > atZero * 1.2 + 1e-9 ? best.shift : 0;
   return res;
 }
 

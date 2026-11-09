@@ -246,7 +246,10 @@ export function writeMidiLead(ctx: Ctx, guide: MidiGuide): Note[] {
   const rng = ctx.rng('midi');
   const out: Note[] = [];
   const total = ctx.bars * ctx.bar;
-  const notes = guide.notes.filter((n) => n.tick < total).sort((a, b) => a.tick - b.tick || a.pitch - b.pitch);
+  const tiled = guide.loopTicks && guide.loopTicks > 0
+    ? Array.from({ length: Math.ceil(total / guide.loopTicks) }, (_, k) => guide.notes.map((n) => ({ ...n, tick: n.tick + k * guide.loopTicks! }))).flat()
+    : guide.notes;
+  const notes = tiled.filter((n) => n.tick < total).sort((a, b) => a.tick - b.tick || a.pitch - b.pitch);
   if (!notes.length) throw new Error('The MIDI guide has no notes inside the arrangement length.');
   const hookPool = ctx.cast.hook.length ? ctx.cast.hook : ctx.mats;
   // rhythm-cycle: a stable motif-like assignment (A A B A …) instead of random choice
