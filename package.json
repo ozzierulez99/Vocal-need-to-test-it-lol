@@ -1,0 +1,81 @@
+{
+  "name": "vocal-chop-studio",
+  "productName": "Vocal Chop Studio",
+  "version": "1.0.0",
+  "description": "Offline procedural vocal-chop composition workstation",
+  "author": "Vocal Chop Studio",
+  "license": "MIT",
+  "private": true,
+  "type": "module",
+  "main": "dist-electron/main.cjs",
+  "scripts": {
+    "dev:web": "vite",
+    "dev": "node scripts/dev-electron.mjs",
+    "build:renderer": "vite build",
+    "build:electron": "node scripts/build-electron.mjs",
+    "build": "npm run build:renderer && npm run build:electron",
+    "start": "electron .",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "examples": "tsx scripts/make-examples.ts",
+    "package": "npm run build && electron-builder --linux dir",
+    "package:linux": "npm run build && electron-builder --linux AppImage",
+    "package:win": "npm run build && electron-builder --win nsis",
+    "package:mac": "npm run build && electron-builder --mac dmg"
+  },
+  "build": {
+    "appId": "com.vocalchopstudio.app",
+    "productName": "Vocal Chop Studio",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**",
+      "dist-electron/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "examples",
+        "to": "examples"
+      }
+    ],
+    "linux": {
+      "category": "Audio",
+      "target": [
+        "AppImage"
+      ]
+    },
+    "mac": {
+      "category": "public.app-category.music"
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    }
+  },
+  "dependencies": {
+    "@tonejs/midi": "^2.0.28",
+    "fflate": "^0.8.3",
+    "immer": "^11.2.9",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "zustand": "^5.1.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.63.0",
+    "@types/node": "^26.6.6",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.2.1",
+    "electron": "^45.2.3",
+    "electron-builder": "^26.18.0",
+    "esbuild": "^0.28.2",
+    "tsx": "^4.23.15",
+    "typescript": "~6.0.2",
+    "vite": "^8.3.6",
+    "vitest": "^5.1.0"
+  }
+}
