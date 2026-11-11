@@ -29,7 +29,7 @@ function guard(fn: () => void) {
 export function composeDirect() {
   guard(() => {
     const out = generate({ ...req(), settings: effectiveSettings() });
-    actions.applyArrangement(out, 'Compose');
+    actions.applyArrangement(out, 'Compose', out.groove);
     st().setPrefs((d) => {
       d.sequence.settings.seed = effectiveSettings().seed;
     });
@@ -73,7 +73,7 @@ export function regenerateLayer(trackId: string) {
 export function variationsOf(c: Candidate | 'current') {
   guard(() => {
     const seq = st().doc.sequence;
-    const base = c === 'current' ? { tracks: seq.tracks, events: seq.events, motifs: seq.motifs, settings: effectiveSettings() } : c;
+    const base = c === 'current' ? { tracks: seq.tracks, events: seq.events, motifs: seq.motifs, settings: effectiveSettings(), groove: seq.groove } : c;
     const vars = generateVariations({ ...req(), settings: base.settings }, base, 5, Date.now() % 100000);
     vars.forEach((v) => (v.parentId = c === 'current' ? undefined : c.id));
     actions.addCandidates(vars);
@@ -88,7 +88,7 @@ export function applyCandidate(c: Candidate, mode: 'all' | 'bars' | 'add-layers'
   const seq = doc.sequence;
   const bar = ticksPerBar(seq.timeSig);
   if (mode === 'all') {
-    actions.applyArrangement({ tracks: c.tracks, events: c.events, motifs: c.motifs }, `Apply “${c.label}”`);
+    actions.applyArrangement({ tracks: c.tracks, events: c.events, motifs: c.motifs }, `Apply “${c.label}”`, c.groove);
     st().setPrefs((d) => {
       d.sequence.settings = { ...c.settings };
     });
@@ -114,4 +114,36 @@ export function resliceSelection() {
   if (!ui.eventIds.length) return;
   const evs = reassignSlices({ slices: doc.slices, sources: doc.sources, settings: effectiveSettings() }, doc.sequence.events, ui.eventIds, Date.now() & 0xffff);
   actions.applyArrangement({ tracks: doc.sequence.tracks, events: evs, motifs: doc.sequence.motifs }, 'Re-slice selection');
+}
+
+
+/**
+ * Instant ideas: one click from "I have a vocal (and maybe a beat)" to ranked
+ * ideas. Runs the best-fitting approaches for the material and keeps the six
+ * highest-scoring, mutually different results.
+ */
+export function instantIdeas(recipes: { label: string; settings: Partial<GeneratorSettings> }[]) {
+  guard(() => {
+    const { doc } = st();
+    if (!doc.slices.length) throw new Error('Add a vocal first: import audio, record, or add a demo vocal.');
+    const all: Candidate[] = [];
+    recipes.forEach((r, i) => {
+      const settings = { ...effectiveSettings(), ...r.settings, seed: ((Date.now() & 0xfffff) + i * 977) >>> 0 };
+      const cands = generateCandidates({ ...req(), settings, count: 3, attempts: 3 });
+      cands.forEach((c) => (c.label = `${r.label} · ${c.label.replace('Most ', '')}`));
+      all.push(...cands);
+    });
+    all.sort((a, b) => (b.score?.total ?? 0) - (a.score?.total ?? 0));
+    const picked: Candidate[] = [];
+    for (const c of all) {
+      if (picked.length >= 6) break;
+      // spread across approaches: at most two per recipe
+      const prefix = c.label.split(' · ')[0];
+      if (picked.filter((p) => p.label.startsWith(prefix)).length >= 2) continue;
+      picked.push(c);
+    }
+    actions.addCandidates(picked);
+    st().setUI({ view: 'compose', candidateA: picked[0]?.id ?? null, candidateB: picked[1]?.id ?? null });
+    st().toast(`${picked.length} ideas ready – best first. Press ▶ on a card, or drag it straight into your DAW.`, 'success');
+  });
 }

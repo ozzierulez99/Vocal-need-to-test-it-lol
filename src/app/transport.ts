@@ -2,6 +2,7 @@ import type { Candidate } from '../core/types';
 import { ticksPerBar } from '../core/time';
 import { engine } from './audio/engine';
 import { useStore } from './store/store';
+import { BACKING_ID } from '../core/project/project';
 
 const st = () => useStore.getState();
 
@@ -22,12 +23,26 @@ function target() {
   return doc.sequence;
 }
 
-// stable object identity for the preview so the engine can cache the tiled notes
+// stable object identities so the engine can cache what it derives from them
 let previewKey: { src: unknown; gain: number; v: { notes: any[]; lengthTicks: number; gain: number } } | null = null;
-function stablePreview(b: { notes: any[]; lengthTicks: number; gain: number }, src: unknown) {
-  if (previewKey && previewKey.src === src && previewKey.gain === b.gain) return previewKey.v;
-  previewKey = { src, gain: b.gain, v: b };
-  return b;
+function beatPreview() {
+  const b = st().doc.beat;
+  if (!b || !b.enabled || !b.fit.preview) return null;
+  const src = b.parts ?? b.notes;
+  if (previewKey && previewKey.src === src && previewKey.gain === b.fit.previewGain) return previewKey.v;
+  // the backing audio replaces the synth when both exist (no doubled beat)
+  const parts = b.parts ?? [{ role: 'chords' as const, notes: b.notes, muted: false }];
+  const notes = parts.filter((p) => !p.muted).flatMap((p) => p.notes.map((n) => ({ ...n, drum: p.role === 'drums' })));
+  previewKey = { src, gain: b.fit.previewGain, v: { notes, lengthTicks: b.lengthTicks, gain: b.fit.previewGain } };
+  return previewKey.v;
+}
+let backingKey: { gain: number; off: number; v: { sourceId: string; gain: number; offsetSec: number } } | null = null;
+function backingPreview() {
+  const k = st().doc.backing;
+  if (!k || !k.enabled || !st().rt.audio.has(BACKING_ID)) return null;
+  if (backingKey && backingKey.gain === k.gain && backingKey.off === k.offsetMs) return backingKey.v;
+  backingKey = { gain: k.gain, off: k.offsetMs, v: { sourceId: BACKING_ID, gain: k.gain, offsetSec: k.offsetMs / 1000 } };
+  return backingKey.v;
 }
 
 export function play(fromTick?: number) {
@@ -44,10 +59,10 @@ export function play(fromTick?: number) {
     loop,
     endTick: end,
     clickFadeMs: doc.clickFadeMs,
-    beat: () => {
-      const b = st().doc.beat;
-      return b && b.enabled && b.fit.preview ? stablePreview({ notes: b.notes, lengthTicks: b.lengthTicks, gain: b.fit.previewGain }, b.notes) : null;
-    },
+    // with a real bounce of the beat loaded, the synth preview steps aside
+    beat: () => (backingPreview() ? null : beatPreview()),
+    backing: backingPreview,
+    fx: () => st().doc.fx ?? null,
     onTick: (t) => useStore.setState({ positionTick: t, playing: true }),
     onEnd: () => useStore.setState({ playing: false, positionTick: 0 }),
   });

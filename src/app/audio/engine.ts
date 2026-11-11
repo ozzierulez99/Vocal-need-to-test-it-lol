@@ -21,7 +21,11 @@ export interface PlayRequest {
   onTick?: (tick: number) => void;
   onEnd?: () => void;
   /** Optional beat preview (MIDI notes looped every lengthTicks), never exported. */
-  beat?: () => { notes: { tick: number; length: number; pitch: number; velocity: number }[]; lengthTicks: number; gain: number } | null;
+  beat?: () => { notes: { tick: number; length: number; pitch: number; velocity: number; drum?: boolean }[]; lengthTicks: number; gain: number } | null;
+  /** Optional audio bounce of the beat (sourceId registered with setAudio), never exported. */
+  backing?: () => { sourceId: string; gain: number; offsetSec: number } | null;
+  /** Audition effects on the vocal chops (monitoring). */
+  fx?: () => { reverb: number; delay: number } | null;
 }
 
 interface SynthNote {
@@ -30,6 +34,58 @@ interface SynthNote {
   pitch: number;
   velocity: number;
   gain: number;
+  drum?: boolean;
+}
+
+interface BackingSeg {
+  time: number;
+  duration: number;
+  /** seconds into the backing audio */
+  from: number;
+  sourceId: string;
+  gain: number;
+}
+
+/** Synthetic reverb impulse (decaying noise) – enough to judge a chop "in a space". */
+export function makeImpulse(ctx: BaseAudioContext, seconds = 2.6): AudioBuffer {
+  const n = Math.round(ctx.sampleRate * seconds);
+  const buf = ctx.createBuffer(2, n, ctx.sampleRate);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    let lp = 0;
+    let seed = 1234567 + c * 7919;
+    for (let i = 0; i < n; i++) {
+      seed = (seed * 1664525 + 1013904223) >>> 0;
+      const white = (seed / 4294967296) * 2 - 1;
+      lp += 0.35 * (white - lp); // darker tail
+      const t = i / n;
+      d[i] = lp * Math.pow(1 - t, 2.2) * (i < 400 ? i / 400 : 1);
+    }
+  }
+  return buf;
+}
+
+/** Wires dry + reverb + tempo delay for the vocal bus. Returns the input node. */
+export function buildFx(ctx: BaseAudioContext, out: AudioNode, bpm: number, fx: { reverb: number; delay: number }, impulse: AudioBuffer): { input: GainNode; reverb: GainNode; delay: GainNode } {
+  const input = ctx.createGain();
+  input.connect(out);
+  const reverb = ctx.createGain();
+  reverb.gain.value = fx.reverb * 0.9;
+  const conv = ctx.createConvolver();
+  conv.buffer = impulse;
+  input.connect(reverb).connect(conv).connect(out);
+  const delay = ctx.createGain();
+  delay.gain.value = fx.delay * 0.7;
+  const dl = ctx.createDelay(2);
+  dl.delayTime.value = Math.min(1.9, (60 / bpm) * 0.75); // dotted eighth
+  const fb = ctx.createGain();
+  fb.gain.value = 0.42;
+  const tone = ctx.createBiquadFilter();
+  tone.type = 'lowpass';
+  tone.frequency.value = 3800;
+  input.connect(delay).connect(dl).connect(tone).connect(out);
+  tone.connect(fb).connect(dl);
+  return { input, reverb, delay };
 }
 
 class AudioEngine {
@@ -42,6 +98,12 @@ class AudioEngine {
   /** When enabled (tests/diagnostics) every scheduled node is recorded relative to the session start. */
   debugSchedule: { eventId: string; at: number; offset: number; duration: number; rate: number }[] | null = null;
   debugSynth: { pitch: number; at: number; duration: number }[] | null = null;
+  debugBacking: { at: number; from: number; duration: number }[] | null = null;
+  private ir: AudioBuffer | null = null;
+  impulse(): AudioBuffer {
+    if (!this.ir || this.ir.sampleRate !== this.context().sampleRate) this.ir = makeImpulse(this.context());
+    return this.ir;
+  }
   /** Last audition (for drawing a moving cursor on the waveform). */
   auditionInfo: { sourceId: string; start: number; end: number; t0: number; dur: number; rate: number; reverse: boolean } | null = null;
 
@@ -165,10 +227,28 @@ class Session {
   private stopped = false;
   private lastTracks: Track[] | null = null;
 
+  private out: GainNode;
+  private fx: { input: GainNode; reverb: GainNode; delay: GainNode } | null = null;
+  private fxTimer: number | null = null;
+
   constructor(private engine: AudioEngine, private req: PlayRequest) {
     this.ctx = engine.context();
+    // out = everything (stopped/faded together); master = vocal chops (optionally through audition FX)
+    this.out = this.ctx.createGain();
+    this.out.connect(this.ctx.destination);
     this.master = this.ctx.createGain();
-    this.master.connect(this.ctx.destination);
+    const fx = req.fx?.() ?? null;
+    if (req.fx) {
+      this.fx = buildFx(this.ctx, this.out, req.seq().bpm, fx ?? { reverb: 0, delay: 0 }, engine.impulse());
+      this.master.connect(this.fx.input);
+      // follow the send knobs live
+      this.fxTimer = window.setInterval(() => {
+        const v = this.req.fx?.();
+        if (!v || !this.fx) return;
+        this.fx.reverb.gain.setTargetAtTime(v.reverb * 0.9, this.ctx.currentTime, 0.05);
+        this.fx.delay.gain.setTargetAtTime(v.delay * 0.7, this.ctx.currentTime, 0.05);
+      }, 120);
+    } else this.master.connect(this.out);
   }
 
   private plan(): PlannedEvent[] {
@@ -258,7 +338,9 @@ class Session {
     const from = this.scheduledUntil;
     this.forEachDue(this.plan(), from, until, (p, when, skip, maxDur) => this.scheduleEvent(p, when, skip, maxDur));
     const synth = this.beatNotes();
-    if (synth.length) this.forEachDue(synth, from, until, (n, when, skip, maxDur) => this.scheduleSynth(n, when, skip, maxDur));
+    if (synth.length) this.forEachDue(synth, from, until, (n, when, skip, maxDur) => (n.drum ? this.scheduleDrum(n, when, skip) : this.scheduleSynth(n, when, skip, maxDur)));
+    const backing = this.backingSegs();
+    if (backing.length) this.forEachDue(backing, from, until, (seg, when, skip, maxDur) => this.scheduleBacking(seg, when, skip, maxDur));
     this.scheduledUntil = until;
   }
 
@@ -312,12 +394,123 @@ class Session {
       for (const n of b.notes) {
         const tick = base + n.tick;
         if (tick >= this.req.endTick) continue;
-        notes.push({ time: ticksToSeconds(tick, bpm), duration: ticksToSeconds(Math.min(n.length, this.req.endTick - tick), bpm), pitch: n.pitch, velocity: n.velocity, gain: b.gain });
+        notes.push({ time: ticksToSeconds(tick, bpm), duration: ticksToSeconds(Math.min(n.length, this.req.endTick - tick), bpm), pitch: n.pitch, velocity: n.velocity, gain: b.gain, drum: n.drum });
       }
     this.beatCache = { key: b, bpm, end: this.req.endTick, notes };
     return notes;
   }
 
+  private backingCache: { key: unknown; bpm: number; end: number; segs: BackingSeg[] } | null = null;
+
+  /** The backing audio cut into one-bar pieces so it loops and seeks with the arrangement. */
+  private backingSegs(): BackingSeg[] {
+    const b = this.req.backing?.();
+    if (!b) return [];
+    const bpm = this.req.seq().bpm;
+    if (this.backingCache && this.backingCache.key === b && this.backingCache.bpm === bpm && this.backingCache.end === this.req.endTick) return this.backingCache.segs;
+    const data = this.engineData(b.sourceId);
+    const segs: BackingSeg[] = [];
+    if (data) {
+      const total = data.channels[0].length / data.sampleRate;
+      const end = ticksToSeconds(this.req.endTick, bpm);
+      const piece = (60 / bpm) * 4;
+      for (let t = 0; t < end - 1e-6; t += piece) {
+        const from = t - b.offsetSec;
+        if (from + piece <= 0 || from >= total) continue;
+        const lead = Math.max(0, -from);
+        segs.push({ time: t + lead, duration: Math.min(piece - lead, total - Math.max(0, from), end - t - lead), from: Math.max(0, from), sourceId: b.sourceId, gain: b.gain });
+      }
+    }
+    this.backingCache = { key: b, bpm, end: this.req.endTick, segs };
+    return segs;
+  }
+
+  private scheduleBacking(seg: BackingSeg, when: number, skip: number, maxDur: number) {
+    const buf = this.engine.buffer(seg.sourceId);
+    if (!buf) return;
+    const ctx = this.ctx;
+    const x = 0.008; // crossfade between neighbouring pieces
+    const dur = Math.min(seg.duration, maxDur) - skip;
+    if (dur <= 0.002) return;
+    const t = Math.max(when, ctx.currentTime);
+    const src = ctx.createBufferSource();
+    src.buffer = buf;
+    const g = ctx.createGain();
+    const level = dbToGain(seg.gain);
+    const pre = skip === 0 && seg.from > x ? x : 0; // start a touch early and fade in under the previous piece
+    g.gain.setValueAtTime(pre ? 0 : level, Math.max(ctx.currentTime, t - pre));
+    if (pre) g.gain.linearRampToValueAtTime(level, t);
+    g.gain.setValueAtTime(level, t + dur);
+    g.gain.linearRampToValueAtTime(0, t + dur + x);
+    src.connect(g).connect(this.out);
+    src.start(Math.max(ctx.currentTime, t - pre), Math.max(0, seg.from + skip - pre), dur + x + pre);
+    this.nodes.add(src);
+    src.onended = () => this.nodes.delete(src);
+    this.engine.debugBacking?.push({ at: t - this.startTime, from: seg.from + skip, duration: dur });
+  }
+
+  private noise: AudioBuffer | null = null;
+
+  /** Tiny drum machine for the beat preview: kick, snare/clap, hats. */
+  private scheduleDrum(n: SynthNote, when: number, skip: number) {
+    if (skip > 0.02) return;
+    const ctx = this.ctx;
+    const t = Math.max(when, ctx.currentTime);
+    if (!this.beatBus) this.ensureBeatBus();
+    const level = dbToGain(n.gain) * (0.4 + 0.6 * n.velocity);
+    const g = ctx.createGain();
+    g.connect(this.beatBus!);
+    if (n.pitch === 35 || n.pitch === 36) {
+      const o = ctx.createOscillator();
+      o.frequency.setValueAtTime(130, t);
+      o.frequency.exponentialRampToValueAtTime(42, t + 0.12);
+      g.gain.setValueAtTime(level * 0.9, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28);
+      o.connect(g);
+      o.start(t);
+      o.stop(t + 0.3);
+      this.synthNodes.add(o);
+      o.onended = () => this.synthNodes.delete(o);
+    } else {
+      if (!this.noise) {
+        this.noise = ctx.createBuffer(1, ctx.sampleRate / 2, ctx.sampleRate);
+        const d = this.noise.getChannelData(0);
+        let seed = 99;
+        for (let i = 0; i < d.length; i++) {
+          seed = (seed * 1664525 + 1013904223) >>> 0;
+          d[i] = (seed / 4294967296) * 2 - 1;
+        }
+      }
+      const src = ctx.createBufferSource();
+      src.buffer = this.noise;
+      const f = ctx.createBiquadFilter();
+      const snare = n.pitch >= 37 && n.pitch <= 40;
+      f.type = snare ? 'bandpass' : 'highpass';
+      f.frequency.value = snare ? 1800 : 7000;
+      const len = snare ? 0.16 : n.pitch === 46 ? 0.2 : 0.045;
+      g.gain.setValueAtTime(level * (snare ? 0.55 : 0.25), t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+      src.connect(f).connect(g);
+      src.start(t, 0, len + 0.02);
+      this.nodes.add(src);
+      src.onended = () => this.nodes.delete(src);
+    }
+    this.engine.debugSynth?.push({ pitch: n.pitch, at: t - this.startTime, duration: 0.05 });
+  }
+
+  private ensureBeatBus() {
+    this.beatBus = this.ctx.createGain();
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 9000;
+    this.beatBus.connect(lp).connect(this.out);
+    this.beatPitched = this.ctx.createBiquadFilter();
+    this.beatPitched.type = 'lowpass';
+    this.beatPitched.frequency.value = 2400;
+    this.beatPitched.connect(this.beatBus);
+  }
+
+  private beatPitched: BiquadFilterNode | null = null;
   private beatBus: GainNode | null = null;
 
   /** Simple soft synth voice: two detuned triangles through a low-pass, ADSR on a gain. */
@@ -325,13 +518,7 @@ class Session {
     const ctx = this.ctx;
     const dur = Math.min(n.duration, maxDur) - skip;
     if (dur <= 0.005) return;
-    if (!this.beatBus) {
-      this.beatBus = ctx.createGain();
-      const lp = ctx.createBiquadFilter();
-      lp.type = 'lowpass';
-      lp.frequency.value = 2400;
-      this.beatBus.connect(lp).connect(this.master);
-    }
+    if (!this.beatBus) this.ensureBeatBus();
     const t = Math.max(when, ctx.currentTime);
     const f = 440 * Math.pow(2, (n.pitch - 69) / 12);
     const g = ctx.createGain();
@@ -342,7 +529,7 @@ class Session {
     g.gain.linearRampToValueAtTime(peak * 0.6, t + Math.min(0.25, dur - rel));
     g.gain.setValueAtTime(peak * 0.6, t + dur - rel);
     g.gain.linearRampToValueAtTime(0, t + dur);
-    g.connect(this.beatBus);
+    g.connect(this.beatPitched!);
     for (const det of [-4, 4]) {
       const o = ctx.createOscillator();
       o.type = 'triangle';
@@ -415,9 +602,10 @@ class Session {
     if (this.timer) clearInterval(this.timer);
     if (this.raf) cancelAnimationFrame(this.raf);
     const now = this.ctx.currentTime;
-    this.master.gain.cancelScheduledValues(now);
-    this.master.gain.setValueAtTime(this.master.gain.value, now);
-    this.master.gain.linearRampToValueAtTime(0, now + 0.012);
+    if (this.fxTimer) clearInterval(this.fxTimer);
+    this.out.gain.cancelScheduledValues(now);
+    this.out.gain.setValueAtTime(this.out.gain.value, now);
+    this.out.gain.linearRampToValueAtTime(0, now + 0.012);
     for (const n of this.nodes) {
       try {
         n.stop(now + 0.015);
@@ -436,6 +624,7 @@ class Session {
     this.synthNodes.clear();
     setTimeout(() => {
       try {
+        this.out.disconnect();
         this.master.disconnect();
         for (const b of this.buses.values()) if (b !== this.master) b.disconnect();
       } catch {

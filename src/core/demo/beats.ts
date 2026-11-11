@@ -1,5 +1,5 @@
 import type { MidiNote } from '../types';
-import { buildMidiFile } from '../midi/midi';
+import { buildMidiFile, buildMultiMidi } from '../midi/midi';
 
 /**
  * Small demo "beat" MIDI files (chord progressions / arps) for trying the
@@ -65,4 +65,35 @@ export const DEMO_BEATS: Record<string, { title: string; bpm: number; notes: () 
 export function demoBeatFile(key: string): Uint8Array {
   const b = DEMO_BEATS[key];
   return buildMidiFile(b.notes(), b.bpm, b.title);
+}
+
+
+/** A whole (small) beat: pads, bass, a lead line and half-time drums – for trying multi-part Beat Fit. */
+export function fullBeatParts(): { name: string; notes: MidiNote[]; drums?: boolean }[] {
+  const prog: [number, string][] = [[57, 'min'], [53, 'maj'], [60, 'maj'], [55, 'maj']];
+  const pads = padProgression(prog).filter((n) => n.pitch >= 50); // upper voices only
+  const bass: MidiNote[] = [];
+  prog.forEach(([root], b) => [0, 6, 10].forEach((st) => bass.push({ tick: b * BAR + st * 240, length: st === 0 ? 1200 : 400, pitch: root - 24, velocity: 0.85 })));
+  const leadLine = [76, 79, 76, 74, 72, 74, 76, 72];
+  const lead: MidiNote[] = [];
+  for (let b = 0; b < 4; b++) [4, 7, 12].forEach((st, i) => lead.push({ tick: b * BAR + st * 240, length: 420, pitch: leadLine[(b * 2 + i) % leadLine.length], velocity: 0.7 }));
+  const drums: MidiNote[] = [];
+  for (let b = 0; b < 4; b++) {
+    [0, 10].forEach((st) => drums.push({ tick: b * BAR + st * 240, length: 120, pitch: 36, velocity: 0.95 }));
+    drums.push({ tick: b * BAR + 8 * 240, length: 120, pitch: 38, velocity: 0.95 }); // backbeat on beat 3 = half-time
+    for (let st = 0; st < 16; st += 2) drums.push({ tick: b * BAR + st * 240, length: 60, pitch: 42, velocity: 0.5 });
+  }
+  return [
+    { name: 'Pads', notes: pads },
+    { name: 'Bass 808', notes: bass },
+    { name: 'Lead synth', notes: lead },
+    { name: 'Drums', notes: drums, drums: true },
+  ];
+}
+
+DEMO_BEATS['full-beat'] = { title: 'Full beat: pads + bass + lead + half-time drums (140 BPM)', bpm: 140, notes: () => fullBeatParts().filter((p) => !p.drums).flatMap((p) => p.notes) };
+
+const _demoBeatFile = demoBeatFile;
+export function demoBeatMidi(key: string): Uint8Array {
+  return key === 'full-beat' ? buildMultiMidi(fullBeatParts(), 140, DEMO_BEATS[key].title) : _demoBeatFile(key);
 }

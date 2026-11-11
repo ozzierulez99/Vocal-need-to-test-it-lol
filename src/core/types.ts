@@ -423,6 +423,37 @@ export interface BeatContext {
   rhythm: BeatRhythm;
   fit: BeatFit;
   enabled: boolean;
+  /** The MIDI parts the beat was built from (chords, bass, lead, drums…). */
+  parts?: BeatPart[];
+  /** Drum pattern per sixteenth of the bar (0..1 occupancy), when drums were supplied. */
+  drums?: { kick: number[]; snare: number[]; hat: number[] };
+  /** The beat's own lead melody: where it plays (per sixteenth) and its register. */
+  lead?: { steps: number[]; low: number; high: number; median: number };
+}
+
+export type BeatRole = 'chords' | 'arp' | 'bass' | 'lead' | 'drums';
+
+export interface BeatPart {
+  id: string;
+  name: string;
+  role: BeatRole;
+  notes: MidiNote[];
+  /** silent in the preview synth */
+  muted?: boolean;
+}
+
+/** A bounce of the user's beat, played in sync for reference (never exported). */
+export interface BackingTrack {
+  name: string;
+  assetName: string;
+  sampleRate: number;
+  frames: number;
+  channelCount: number;
+  /** dB */
+  gain: number;
+  /** milliseconds the audio is shifted later (negative = earlier) */
+  offsetMs: number;
+  enabled: boolean;
 }
 
 export interface CandidateMetrics {
@@ -515,4 +546,15 @@ export interface ProjectDoc {
   midiGuides: MidiGuide[];
   /** Optional beat context (chord progression / arp MIDI from the user's beat). */
   beat?: BeatContext;
+  /** Optional audio bounce of the beat for auditioning in context. */
+  backing?: BackingTrack;
+  /** Audition effects (monitoring only unless printed on export). */
+  fx?: AuditionFx;
+}
+
+export interface AuditionFx {
+  reverb: number; // 0..1 send
+  delay: number; // 0..1 send
+  /** print the audition effects into exported audio */
+  print: boolean;
 }

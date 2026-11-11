@@ -24,6 +24,32 @@ export function chordChanges(b: BeatContext, totalTicks: number): number[] {
   return out;
 }
 
+/**
+ * How busy each sixteenth of the bar is for a vocal: the chord/arp bed and –
+ * if the beat has its own lead melody – that melody too.
+ */
+export function occupancy(b: BeatContext): number[] {
+  return b.rhythm.steps.map((v, i) => Math.max(v, b.lead?.steps[i] ?? 0));
+}
+
+/** Drum hits a chop can lock onto (kick or snare), per sixteenth. */
+export function drumAnchors(b: BeatContext): number[] | null {
+  if (!b.drums) return null;
+  return b.drums.kick.map((k, i) => Math.max(k, b.drums!.snare[i] ?? 0));
+}
+
+/**
+ * Keep the vocal lead out of the register of the beat's own lead melody:
+ * if they would sit within a fourth of each other, move the vocal an octave away.
+ */
+export function liftAwayFromLead(b: BeatContext, voicePitch: number | null, lift: number): number {
+  if (!b.lead || voicePitch === null) return lift;
+  const centre = voicePitch + lift;
+  if (Math.abs(centre - b.lead.median) >= 6) return lift;
+  // prefer going above the lead unless that gets extreme
+  return centre + 12 - voicePitch <= 14 ? lift + 12 : lift - 12;
+}
+
 export interface Hit {
   step: number;
   len: number;
@@ -37,8 +63,11 @@ export interface Hit {
  */
 export function fitHits(hits: Hit[], b: BeatContext, mode: BeatFit['rhythm'], rng: Rng): { hits: Hit[]; moved: number; dropped: number } {
   if (mode === 'off' || !hits.length) return { hits, moved: 0, dropped: 0 };
-  const spb = b.rhythm.steps.length;
-  const occ = (s: number) => b.rhythm.steps[((s % spb) + spb) % spb] ?? 0;
+  const steps = occupancy(b);
+  const anchors = drumAnchors(b);
+  const spb = steps.length;
+  // "follow" also locks onto kick/snare hits when drums were supplied
+  const occ = (s: number) => (mode === 'follow' && anchors ? Math.max(steps[((s % spb) + spb) % spb] ?? 0, anchors[((s % spb) + spb) % spb] ?? 0) : steps[((s % spb) + spb) % spb] ?? 0);
   const out: Hit[] = [];
   const taken = new Set<number>();
   let moved = 0;
@@ -75,8 +104,9 @@ export function fitHits(hits: Hit[], b: BeatContext, mode: BeatFit['rhythm'], rn
 
 /** Steps (of one bar) where the beat is busy / sparse. */
 export function busyStep(b: BeatContext, absStep: number): number {
-  const spb = b.rhythm.steps.length;
-  return b.rhythm.steps[((absStep % spb) + spb) % spb] ?? 0;
+  const steps = occupancy(b);
+  const spb = steps.length;
+  return steps[((absStep % spb) + spb) % spb] ?? 0;
 }
 
 export interface HarmonizeNote {
@@ -196,7 +226,13 @@ export function describeBeat(b: BeatContext): string[] {
   out.push(`Reads as ${kindText}: ${busy} (${r.onsetsPerBeat.toFixed(1)} onsets per beat), ${r.sustain > 0.7 ? 'sustained' : r.sustain > 0.4 ? 'medium-length' : 'short, plucky'} notes around ${midiToName(r.register)}`);
   const free = r.steps.map((v, i) => ({ v, i })).filter((x) => x.v < 0.2).length;
   out.push(`${free} of ${r.steps.length} sixteenth positions per bar are free of beat onsets${r.syncopation > 0.45 ? '; the beat is syncopated' : ''}`);
-  if (b.bpm) out.push(`${Math.round(b.bpm)} BPM${b.bpm >= 130 && b.bpm <= 160 && r.onsetsPerBeat < 1 ? ' – could be felt half-time' : ''}`);
+  if (b.parts && b.parts.length > 1) out.push(`Parts: ${b.parts.map((p) => `${p.name} (${p.role})`).join(', ')}`);
+  if (b.drums) {
+    const at = (arr: number[]) => arr.map((v, i) => (v >= 0.5 ? i + 1 : 0)).filter(Boolean);
+    out.push(`Drums: kick on sixteenths ${at(b.drums.kick).join(', ') || '–'}; snare on ${at(b.drums.snare).join(', ') || '–'}${r.feel === 'half' ? ' → half-time feel (backbeat on beat 3)' : r.feel === 'normal' ? ' → backbeat on 2 and 4' : ''}`);
+  }
+  if (b.lead) out.push(`The beat has its own lead around ${midiToName(b.lead.median)} – vocal chops stay out of its register and off its notes`);
+  if (b.bpm) out.push(`${Math.round(b.bpm)} BPM${r.feel === 'half' ? ' (half-time)' : r.feel === undefined && b.bpm >= 130 && b.bpm <= 160 && r.onsetsPerBeat < 1 ? ' – could be felt half-time' : ''}`);
   return out;
 }
 
@@ -220,7 +256,7 @@ export function beatRecipes(b: BeatContext, opts: { sources: number }): BeatReci
   const phraseBars = clamp(r.harmonicRhythm >= 2 ? 4 : loopBars >= 4 ? 2 : Math.max(1, loopBars), 1, 4);
   const busy = r.onsetsPerBeat >= 2 || r.kind === 'arp';
   const sustained = r.sustain > 0.65 && r.kind !== 'arp';
-  const slowFeel = bpm < 100 || (bpm >= 130 && r.onsetsPerBeat < 1);
+  const slowFeel = r.feel === 'half' || bpm < 100 || (r.feel === undefined && bpm >= 130 && r.onsetsPerBeat < 1);
   const fast = bpm >= 150 && !slowFeel;
   const base = { keyRoot: key.root, scale: key.scale, transpose: true, phraseBars, layers: [] as Role[] };
   const space = (x: number) => clamp(x + (busy ? 0.2 : -0.05), 0, 1);

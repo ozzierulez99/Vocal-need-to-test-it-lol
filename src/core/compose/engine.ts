@@ -22,7 +22,7 @@ import { writePhraseLead, writeMicroLead, writeMidiLead, writeConversation } fro
 import { DIRECTIONS, FEEL_LABELS } from './directions';
 import { ticksPerBar } from '../time';
 import { Rng } from '../rng';
-import { effectiveKey, harmonize, chordAt, tuneToScale } from '../beat/fit';
+import { effectiveKey, harmonize, chordAt, tuneToScale, liftAwayFromLead } from '../beat/fit';
 import { keyName } from '../beat/analyze';
 
 export const MODE_LABELS: Record<GeneratorSettings['mode'], string> = {
@@ -160,6 +160,13 @@ export function generate(input: GenerateInput): GenerateOutput {
   const densityMul = { hook: 1, verse: 0.7, build: 1, drop: 1.15, intro: 0.8, outro: 0.8 }[purpose];
   ctx.prof = { ...ctx.prof, density: clamp(ctx.prof.density * densityMul, 0.04, 0.95) };
   if (ctx.half && (s.mode === 'melodic') && ctx.phraseBars < 4 && ctx.bars >= ctx.phraseBars * 4) ctx.phraseBars *= 2;
+  if (beat?.lead) {
+    const moved = liftAwayFromLead(beat, cast.voice.pitch, ctx.lift);
+    if (moved !== ctx.lift) {
+      ctx.log.push(`Register: moved the vocal ${moved > ctx.lift ? 'up' : 'down'} an octave to stay clear of the beat's lead melody`);
+      ctx.lift = moved;
+    }
+  }
   const form = planForm(ctx, s.mode);
   let layersWanted = (s.layers.length ? s.layers : defaultLayers(s.mode, s)).slice();
   // builds and drops are one continuous line: no call-and-response gaps unless the user asks for a response layer

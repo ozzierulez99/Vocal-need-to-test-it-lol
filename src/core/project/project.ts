@@ -16,6 +16,8 @@ import { DEFAULT_FIT } from '../beat/fit';
 export const PROJECT_VERSION = 1;
 export const PROJECT_FILE = 'project.json';
 export const AUDIO_DIR = 'audio';
+/** Key under which the backing track's decoded audio is held at runtime. */
+export const BACKING_ID = '__backing';
 
 export interface ProjectFS {
   readText(path: string): Promise<string>;
@@ -120,6 +122,14 @@ export async function saveProject(fs: ProjectFS, dir: string, doc: ProjectDoc, a
       written.push(path);
     }
   }
+  if (doc.backing) {
+    const path = join(dir, AUDIO_DIR, doc.backing.assetName);
+    const bytes = assets.get(doc.backing.assetName);
+    if (bytes && !(await fs.exists(path))) {
+      await fs.writeBytes(path, bytes);
+      written.push(path);
+    }
+  }
   await fs.writeText(join(dir, PROJECT_FILE), serializeProject(doc));
   written.push(join(dir, PROJECT_FILE));
   return { written };
@@ -164,6 +174,18 @@ export async function loadProject(
       errors.push(`${src.name}: ${(e as Error).message}`);
     }
   }
+  if (doc.backing) {
+    // the backing track is optional reference audio: if it is gone, just drop it
+    const path = join(dir, AUDIO_DIR, doc.backing.assetName);
+    try {
+      const bytes = await fs.readBytes(path);
+      assets.set(doc.backing.assetName, bytes);
+      audio.set(BACKING_ID, await decode(bytes, doc.backing.assetName));
+    } catch {
+      errors.push(`Backing track “${doc.backing.name}” could not be loaded and was removed.`);
+      doc.backing = undefined;
+    }
+  }
   return { doc, assets, audio, missing, errors };
 }
 
@@ -174,6 +196,8 @@ export function bundleProject(doc: ProjectDoc, assets: Map<string, Uint8Array>):
     const b = assets.get(s.assetName);
     if (b) files[`${AUDIO_DIR}/${s.assetName}`] = [b, { level: 0 }] as any;
   }
+  const bk = doc.backing && assets.get(doc.backing.assetName);
+  if (bk) files[`${AUDIO_DIR}/${doc.backing!.assetName}`] = [bk, { level: 0 }] as any;
   return zipSync(files as any);
 }
 

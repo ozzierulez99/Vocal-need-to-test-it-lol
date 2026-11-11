@@ -1,4 +1,4 @@
-import type { BeatChord, BeatContext, BeatKey, BeatRhythm, MidiNote, ScaleName } from '../types';
+import type { BeatChord, BeatContext, BeatKey, BeatRhythm, MidiNote, ScaleName, BeatPart, BeatRole } from '../types';
 import { PPQ } from '../types';
 import { NOTE_NAMES } from '../time';
 import { SCALES } from '../compose/theory';
@@ -258,26 +258,96 @@ export function scalePcs(root: number, scale: ScaleName): number[] {
   return SCALES[scale].map((i) => (root + i) % 12);
 }
 
-/** Full analysis of a beat MIDI (percussion already excluded). */
-export function analyseBeat(notes: MidiNote[], opts: { name: string; bpm?: number; timeSig?: [number, number] }): BeatContext {
-  if (!notes.length) throw new Error('The MIDI file has no pitched notes to analyse.');
+const KICKS = new Set([35, 36]);
+const SNARES = new Set([37, 38, 39, 40]);
+const HATS = new Set([42, 44, 46, 51, 53, 54, 59]);
+
+/** Guess what a MIDI track is: drums, bass, chords, an arp or a lead line. */
+export function classifyPart(notes: MidiNote[], name = '', percussion = false): BeatRole {
+  const n = name.toLowerCase();
+  if (percussion || /drum|kick|snare|hat|perc|clap|\bkit\b|rim|cymbal/.test(n)) return 'drums';
+  if (!notes.length) return 'chords';
+  const pitches = notes.map((x) => x.pitch).sort((a, b) => a - b);
+  const median = pitches[Math.floor(pitches.length / 2)];
+  const clusters = new Map<number, number>();
+  for (const x of notes) clusters.set(Math.round(x.tick / 30), (clusters.get(Math.round(x.tick / 30)) ?? 0) + 1);
+  const perOnset = notes.length / Math.max(1, clusters.size);
+  const end = Math.max(...notes.map((x) => x.tick + x.length));
+  const onsetsPerBeat = clusters.size / Math.max(1, end / PPQ);
+  if (/bass|808|sub/.test(n) || (median < 48 && perOnset <= 1.4)) return 'bass';
+  if (/chord|pad|keys|piano|pluck|stab/.test(n) || perOnset >= 2.2) return 'chords';
+  if (/arp/.test(n) || (perOnset <= 1.4 && onsetsPerBeat >= 1.8)) return 'arp';
+  if (/lead|melody|vocal|hook|top/.test(n)) return 'lead';
+  return perOnset <= 1.4 ? 'lead' : 'chords';
+}
+
+function stepProfile(notes: MidiNote[], timeSig: [number, number], lengthTicks: number, filter?: (n: MidiNote) => boolean): number[] {
+  const step = PPQ / 4;
+  const bar = barTicks(timeSig);
+  const spb = Math.round(bar / step);
+  const bars = Math.max(1, Math.round(lengthTicks / bar));
+  const out = new Array(spb).fill(0);
+  const seen = new Set<string>();
+  for (const n of notes) {
+    if (filter && !filter(n)) continue;
+    const t = Math.round(n.tick / step);
+    const b = Math.floor((t * step) / bar);
+    const s = ((t % spb) + spb) % spb;
+    const k = `${b}:${s}`;
+    if (b >= bars || seen.has(k)) continue;
+    seen.add(k);
+    out[s] += 1 / bars;
+  }
+  return out.map((v) => Math.min(1, v));
+}
+
+export interface PartInput {
+  name: string;
+  notes: MidiNote[];
+  role?: BeatRole;
+  percussion?: boolean;
+  muted?: boolean;
+  id?: string;
+}
+
+/**
+ * Full analysis of a beat given as one or more MIDI parts. Harmony comes from
+ * chords / arp / bass, the rhythm bed from chords / arp, the drum pattern and
+ * the beat's own lead line are profiled separately.
+ */
+export function analyseParts(inputs: PartInput[], opts: { name: string; bpm?: number; timeSig?: [number, number] }): BeatContext {
   const timeSig = opts.timeSig ?? [4, 4];
   const bar = barTicks(timeSig);
-  // start the loop at the first bar that contains notes
-  const firstBar = Math.floor(Math.min(...notes.map((n) => n.tick)) / bar) * bar;
-  const shifted = notes.map((n) => ({ ...n, tick: n.tick - firstBar })).sort((a, b) => a.tick - b.tick || a.pitch - b.pitch);
-  const end = Math.max(...shifted.map((n) => n.tick + n.length));
+  const withNotes = inputs.filter((p) => p.notes.length);
+  if (!withNotes.length) throw new Error('The MIDI file has no notes to analyse.');
+  const first = Math.floor(Math.min(...withNotes.flatMap((p) => p.notes.map((n) => n.tick))) / bar) * bar;
+  const parts: BeatPart[] = withNotes.map((p, i) => ({
+    id: p.id ?? `part${i + 1}`,
+    name: p.name || `Part ${i + 1}`,
+    role: p.role ?? classifyPart(p.notes, p.name, p.percussion),
+    muted: p.muted,
+    notes: p.notes.map((n) => ({ ...n, tick: n.tick - first })).sort((a, b) => a.tick - b.tick || a.pitch - b.pitch),
+  }));
+  const of = (...roles: BeatRole[]) => parts.filter((p) => roles.includes(p.role)).flatMap((p) => p.notes);
+  const pitchedAll = of('chords', 'arp', 'bass', 'lead').sort((a, b) => a.tick - b.tick || a.pitch - b.pitch);
+  if (!pitchedAll.length) throw new Error('The MIDI only contains drums – add the chords, bass or an arp so the key can be read.');
+  // harmony: chords/arp/bass; a lone lead line still tells us the key
+  let harmonic = of('chords', 'arp', 'bass').sort((a, b) => a.tick - b.tick || a.pitch - b.pitch);
+  if (!harmonic.length) harmonic = pitchedAll;
+  let bed = of('chords', 'arp').sort((a, b) => a.tick - b.tick || a.pitch - b.pitch);
+  if (!bed.length) bed = harmonic;
+  const all = parts.flatMap((p) => p.notes);
+  const end = Math.max(...all.map((n) => n.tick + n.length));
   const lengthTicks = Math.max(bar, Math.ceil((end - bar * 0.1) / bar) * bar);
-  const rhythmBase = analyseRhythm(shifted, timeSig, lengthTicks);
-  const chords = detectChords(shifted, timeSig, lengthTicks, rhythmBase.kind);
-  const changes = chords.length;
-  const harmonicRhythm = Math.max(0.25, Math.round(((lengthTicks / bar) / Math.max(1, changes)) * 4) / 4);
-  const key = detectKey(shifted, chords);
+  const rhythmBase = analyseRhythm(bed, timeSig, lengthTicks);
+  const chords = detectChords(harmonic, timeSig, lengthTicks, analyseRhythm(harmonic, timeSig, lengthTicks).kind === 'chords' ? 'chords' : rhythmBase.kind);
+  const harmonicRhythm = Math.max(0.25, Math.round(((lengthTicks / bar) / Math.max(1, chords.length)) * 4) / 4);
+  const key = detectKey(pitchedAll, chords);
   const flats = prefersFlats(key.root, key.scale);
   for (const c of chords) c.symbol = chordSymbol(c.root, c.quality, flats);
-  return {
+  const ctx: BeatContext = {
     name: opts.name,
-    notes: shifted,
+    notes: pitchedAll,
     bpm: opts.bpm,
     timeSig,
     lengthTicks,
@@ -286,5 +356,34 @@ export function analyseBeat(notes: MidiNote[], opts: { name: string; bpm?: numbe
     rhythm: { ...rhythmBase, harmonicRhythm },
     fit: { harmonize: true, rhythm: 'complement', preview: true, previewGain: -12 },
     enabled: true,
+    parts,
   };
+  const drumNotes = of('drums');
+  if (drumNotes.length) {
+    const kick = stepProfile(drumNotes, timeSig, lengthTicks, (n) => KICKS.has(n.pitch));
+    const snare = stepProfile(drumNotes, timeSig, lengthTicks, (n) => SNARES.has(n.pitch));
+    const hat = stepProfile(drumNotes, timeSig, lengthTicks, (n) => HATS.has(n.pitch) || (!KICKS.has(n.pitch) && !SNARES.has(n.pitch)));
+    ctx.drums = { kick, snare, hat };
+    // backbeat on beat 3 only = half-time; on 2 and 4 = normal time
+    const spb = snare.length;
+    const q = Math.round(spb / 4);
+    const b2 = snare[q] ?? 0;
+    const b3 = snare[2 * q] ?? 0;
+    const b4 = snare[3 * q] ?? 0;
+    if (b3 > 0.5 && b2 < 0.3 && b4 < 0.3) ctx.rhythm.feel = 'half';
+    else if (b2 > 0.5 || b4 > 0.5) ctx.rhythm.feel = 'normal';
+  }
+  const leadNotes = of('lead');
+  if (leadNotes.length && parts.some((p) => p.role !== 'lead' && p.role !== 'drums')) {
+    const ps = leadNotes.map((n) => n.pitch).sort((a, b) => a - b);
+    ctx.lead = { steps: stepProfile(leadNotes, timeSig, lengthTicks), low: ps[0], high: ps[ps.length - 1], median: ps[Math.floor(ps.length / 2)] };
+  }
+  return ctx;
+}
+
+/** Full analysis of a single pitched MIDI part (chords or an arp). */
+export function analyseBeat(notes: MidiNote[], opts: { name: string; bpm?: number; timeSig?: [number, number] }): BeatContext {
+  if (!notes.length) throw new Error('The MIDI file has no pitched notes to analyse.');
+  const kind = analyseRhythm(notes, opts.timeSig ?? [4, 4], Math.max(...notes.map((n) => n.tick + n.length))).kind;
+  return analyseParts([{ name: opts.name, notes, role: kind === 'arp' || kind === 'melody' ? 'arp' : 'chords' }], opts);
 }

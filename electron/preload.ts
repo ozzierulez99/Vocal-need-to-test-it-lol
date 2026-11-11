@@ -3,7 +3,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 const CHANNELS = new Set([
   'dialog:openAudio', 'dialog:openMidi', 'dialog:relink', 'dialog:openProject', 'dialog:saveProject', 'dialog:saveFile', 'dialog:exportDir',
   'fs:readText', 'fs:readBytes', 'fs:writeText', 'fs:writeBytes', 'fs:exists', 'fs:mkdir', 'fs:isFile',
-  'shell:show', 'app:recent', 'app:addRecent', 'app:examples', 'app:confirm-close',
+  'shell:show', 'app:recent', 'app:addRecent', 'app:examples', 'app:confirm-close', 'drag:prepare',
 ]);
 
 contextBridge.exposeInMainWorld('vcs', {
@@ -13,4 +13,5 @@ contextBridge.exposeInMainWorld('vcs', {
     return ipcRenderer.invoke(channel, ...args);
   },
   onBeforeClose: (fn: () => void) => ipcRenderer.on('app:before-close', fn),
+  startDrag: (file: string) => ipcRenderer.send('drag:start', file),
 });

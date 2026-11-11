@@ -1,5 +1,7 @@
 import type { AudioData, ProjectDoc, SourceAudio } from '../../core/types';
-import { newProjectDoc, saveProject, loadProject, bundleProject, unbundleProject } from '../../core/project/project';
+import { newProjectDoc, saveProject, loadProject, bundleProject, unbundleProject, BACKING_ID } from '../../core/project/project';
+import { sustainRegion } from '../../core/audio/sustain';
+import { mineVowelSlices, makeSlice } from '../../core/slicing/slices';
 import { encodeWav, frameCount } from '../../core/audio/wav';
 import { autoChop } from '../../core/slicing/slices';
 import { parseMidi, guideFromMidi } from '../../core/midi/midi';
@@ -56,6 +58,15 @@ async function decodeAssets(doc: ProjectDoc, assets: Map<string, Uint8Array>) {
     } catch {
       s.missing = true;
       missing.push(s.name);
+    }
+  }
+  if (doc.backing) {
+    const b = assets.get(doc.backing.assetName);
+    try {
+      if (!b) throw new Error('missing');
+      audio.set(BACKING_ID, await decodeAudio(b, doc.backing.assetName));
+    } catch {
+      doc.backing = undefined;
     }
   }
   return { audio, missing };
@@ -219,4 +230,61 @@ export function importMidiBytes(bytes: Uint8Array, name: string) {
     st().toast((e as Error).message, 'error');
     return null;
   }
+}
+
+
+/** Loop-sustain a slice into a new, longer derived source (pads, drones, gate material). */
+export function sustainSlice(sliceId: string, seconds = 4): string | null {
+  const { doc, rt } = st();
+  const sl = doc.slices.find((x) => x.id === sliceId);
+  const audio = sl ? rt.audio.get(sl.sourceId) : undefined;
+  if (!sl || !audio) return null;
+  const out = sustainRegion(audio, sl.start, sl.end, { seconds });
+  const bytes = encodeWav(out, 24);
+  const id = uid('src');
+  const src: SourceAudio = { id, name: `${sl.name} (sustained ${seconds}s)`, assetName: `${id}.wav`, kind: 'derived', derivedFrom: { sliceId, op: 'sustain', seconds }, sampleRate: out.sampleRate, channelCount: out.channels.length, frames: frameCount(out), createdAt: Date.now() };
+  const keepSource = st().ui.sourceId;
+  st().addSource(src, out, bytes);
+  engine.setAudio(id, out);
+  const slice = makeSlice(src, 0, src.frames, 'sound', { name: `${sl.name}~`, category: 'sustained-vowel', tags: ['sustained', 'auto'], rootNote: sl.rootNote, role: 'atmosphere' });
+  actions.addSlices([slice], false);
+  // keep the pitch of the original: looping does not change it, and the long tone can confuse the estimator
+  const made = st().doc.slices.find((x) => x.id === slice.id);
+  if (made?.analysis && sl.analysis?.pitch != null) actions.updateSlice(slice.id, { analysis: { ...made.analysis, pitch: sl.analysis.pitch, pitchConfidence: Math.max(made.analysis.pitchConfidence, 0.85) } }, 'Sustain slice');
+  st().setUI({ sourceId: keepSource });
+  return slice.id;
+}
+
+/** Make pads from the best vowels if the project has no long sustained material yet. */
+export function ensurePads(count = 2, seconds = 4): number {
+  const { doc } = st();
+  const srcOf = (id: string) => doc.sources.find((s) => s.id === id);
+  const dur = (s: (typeof doc.slices)[number]) => (s.end - s.start) / (srcOf(s.sourceId)?.sampleRate ?? 44100);
+  if (doc.slices.some((s) => s.tags.includes('sustained'))) return 0;
+  const vowels = doc.slices
+    .filter((s) => s.analysis?.pitch != null && s.analysis.noisiness < 0.35 && dur(s) >= 0.18 && dur(s) < 2.5 && srcOf(s.sourceId)?.kind !== 'derived')
+    .sort((a, b) => (b.tags.includes('vowel') ? 1 : 0) - (a.tags.includes('vowel') ? 1 : 0) || dur(b) - dur(a));
+  const seen = new Set<number>();
+  let n = 0;
+  for (const v of vowels) {
+    const pcKey = Math.round(v.analysis!.pitch!);
+    if (seen.has(pcKey)) continue; // different notes make more useful pads
+    seen.add(pcKey);
+    if (sustainSlice(v.id, seconds)) n++;
+    if (n >= count) break;
+  }
+  return n;
+}
+
+/** Vowel mining on an existing source (for projects sliced before this existed, or after manual edits). */
+export function findVowelsIn(sourceId: string): number {
+  const { doc, rt } = st();
+  const src = doc.sources.find((s) => s.id === sourceId);
+  const audio = rt.audio.get(sourceId);
+  if (!src || !audio) return 0;
+  const existing = doc.slices.filter((s) => s.sourceId === sourceId && s.tags.includes('vowel'));
+  const mined = mineVowelSlices(src, audio, { parents: doc.slices.filter((s) => s.sourceId === sourceId), startIndex: existing.length })
+    .filter((m) => !existing.some((e) => Math.abs(e.start - m.start) < 400 && Math.abs(e.end - m.end) < 400));
+  if (mined.length) actions.addSlices(mined, true);
+  return mined.length;
 }

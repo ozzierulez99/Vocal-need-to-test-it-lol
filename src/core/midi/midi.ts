@@ -177,3 +177,20 @@ export function buildMidiFile(notes: MidiNote[], bpm: number, name = 'Guide'): U
   for (const n of notes) t.addNote({ midi: n.pitch, ticks: Math.round(n.tick * scale), durationTicks: Math.round(n.length * scale), velocity: n.velocity });
   return midi.toArray();
 }
+
+
+/** Build a multi-track MIDI file (drum tracks go to channel 10). Used for demos and tests. */
+export function buildMultiMidi(tracks: { name: string; notes: MidiNote[]; drums?: boolean }[], bpm: number, name = 'Beat'): Uint8Array {
+  const midi = new Midi();
+  midi.name = name;
+  midi.header.setTempo(bpm);
+  midi.header.update();
+  const scale = midi.header.ppq / PPQ;
+  for (const tr of tracks) {
+    const t = midi.addTrack();
+    t.name = tr.name;
+    if (tr.drums) t.channel = 9;
+    for (const n of tr.notes) t.addNote({ midi: n.pitch, ticks: Math.round(n.tick * scale), durationTicks: Math.max(1, Math.round(n.length * scale)), velocity: n.velocity });
+  }
+  return midi.toArray();
+}

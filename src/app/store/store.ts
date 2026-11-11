@@ -326,11 +326,12 @@ export const actions = {
     });
     S().setUI({ eventIds: S().ui.eventIds.filter((i) => S().doc.sequence.events.some((e) => e.id === i)) });
   },
-  applyArrangement(out: { tracks: Track[]; events: SeqEvent[]; motifs: Sequence['motifs'] }, label: string) {
+  applyArrangement(out: { tracks: Track[]; events: SeqEvent[]; motifs: Sequence['motifs'] }, label: string, groove?: Sequence['groove']) {
     S().commit(label, (d) => {
       d.sequence.tracks = out.tracks as any;
       d.sequence.events = out.events as any;
       d.sequence.motifs = out.motifs as any;
+      if (groove) d.sequence.groove = { ...groove };
     });
     S().setUI({ eventIds: [] });
   },

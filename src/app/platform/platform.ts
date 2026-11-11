@@ -39,11 +39,13 @@ export interface Platform {
   addRecent(r: Recent): Promise<void>;
   examples(): Promise<Recent[]>;
   reveal?(path: string): void;
+  /** Native "drag this file out of the app" (desktop only): prepare writes a temp file, start begins the OS drag. */
+  dragOut?: { prepare(file: ExportFile): Promise<string>; start(path: string): void };
 }
 
 declare global {
   interface Window {
-    vcs?: { platform: string; invoke: (ch: string, ...a: unknown[]) => Promise<any>; onBeforeClose: (fn: () => void) => void };
+    vcs?: { platform: string; invoke: (ch: string, ...a: unknown[]) => Promise<any>; onBeforeClose: (fn: () => void) => void; startDrag?: (file: string) => void };
   }
 }
 
@@ -109,6 +111,9 @@ function electronPlatform(): Platform {
     addRecent: (r) => inv('app:addRecent', r),
     examples: () => inv('app:examples'),
     reveal: (p) => void inv('shell:show', p),
+    dragOut: window.vcs!.startDrag
+      ? { prepare: (file) => inv('drag:prepare', file.name, file.bytes), start: (p) => window.vcs!.startDrag!(p) }
+      : undefined,
   };
 }
 
