@@ -235,7 +235,16 @@ export function analyseRegion(audio: AudioData, start: number, end: number, glob
   // Aperiodic (whispered/breathy/consonant) material scores high.
   const noisiness = Math.max(0, Math.min(1, 0.7 * (1 - pitch.confidence) + 0.3 * zcrNorm));
   const intensity = Math.max(0, Math.min(1, rms / Math.max(1e-6, globalPeakRms)));
+  // Perceptual onset: where the envelope first reaches half of its peak (fine 2 ms hop).
+  const fineHop = Math.max(8, Math.round(sr * 0.002));
+  const fine = rmsEnvelope(x.subarray(0, Math.min(x.length, Math.round(sr * 0.25))), fineHop, fineHop * 2);
+  let finePeak = 0;
+  for (const v of fine) finePeak = Math.max(finePeak, v);
+  let onsetIdx = 0;
+  while (onsetIdx < fine.length && fine[onsetIdx] < Math.max(finePeak, envPeak * 0.6) * 0.5) onsetIdx++;
+  const onset = onsetIdx >= fine.length ? 0 : Math.max(0, (onsetIdx - 1) * fineHop);
   return {
+    onset,
     rms,
     peak,
     attack,
@@ -245,4 +254,95 @@ export function analyseRegion(audio: AudioData, start: number, end: number, glob
     pitchConfidence: pitch.confidence,
     intensity,
   };
+}
+
+
+/** Frame-wise pitch track on a decimated copy (fast enough for whole recordings). */
+export interface PitchFrame {
+  /** frame position in the original audio */
+  pos: number;
+  midi: number | null;
+  confidence: number;
+  rms: number;
+}
+
+export function pitchTrack(audio: AudioData, hopMs = 10): { frames: PitchFrame[]; hop: number } {
+  const mono = toMono(audio);
+  const factor = Math.max(1, Math.floor(audio.sampleRate / 11025));
+  const sr = audio.sampleRate / factor;
+  const n = Math.floor(mono.length / factor);
+  const x = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let a = 0;
+    for (let j = 0; j < factor; j++) a += mono[i * factor + j];
+    x[i] = a / factor;
+  }
+  const W = Math.round(sr * 0.04);
+  const hop = Math.max(1, Math.round((sr * hopMs) / 1000));
+  const frames: PitchFrame[] = [];
+  for (let s = 0; s + W <= n; s += hop) {
+    const win = x.subarray(s, s + W);
+    let e = 0;
+    for (let i = 0; i < W; i++) e += win[i] * win[i];
+    const rms = Math.sqrt(e / W);
+    const p = rms > 1e-4 ? yinWindow(win, sr, 75, 1100) : { midi: null, confidence: 0 };
+    frames.push({ pos: s * factor, midi: p.midi, confidence: p.confidence, rms });
+  }
+  return { frames, hop: hop * factor };
+}
+
+export interface VowelRegion {
+  start: number;
+  end: number;
+  /** median MIDI pitch of the region */
+  pitch: number;
+}
+
+/**
+ * "Vowel mining": finds stable, clearly pitched stretches (sung or spoken
+ * vowels) regardless of word boundaries. These make the cleanest chop material
+ * because their pitch is well defined and they start right at the vowel.
+ */
+export function findVowels(audio: AudioData, opts: { minMs?: number; tolerance?: number; maxMs?: number } = {}): VowelRegion[] {
+  const { minMs = 70, tolerance = 0.7, maxMs = 2500 } = opts;
+  const { frames, hop } = pitchTrack(audio);
+  let peak = 0;
+  for (const f of frames) peak = Math.max(peak, f.rms);
+  if (peak <= 0) return [];
+  const voiced = (f: PitchFrame) => f.midi !== null && f.confidence > 0.82 && f.rms > peak * 0.05;
+  const out: VowelRegion[] = [];
+  const total = audio.channels[0].length;
+  let i = 0;
+  while (i < frames.length) {
+    if (!voiced(frames[i])) {
+      i++;
+      continue;
+    }
+    const startIdx = i;
+    const pitches: number[] = [frames[i].midi!];
+    let ref = frames[i].midi!;
+    let misses = 0;
+    i++;
+    while (i < frames.length) {
+      const f = frames[i];
+      const ok = voiced(f) && Math.abs(f.midi! - ref) <= tolerance;
+      if (ok) {
+        pitches.push(f.midi!);
+        // slow running reference follows gentle drift but not note changes
+        ref = ref * 0.8 + f.midi! * 0.2;
+        misses = 0;
+      } else if (++misses > 2) break;
+      i++;
+    }
+    const endIdx = i - misses;
+    const start = Math.max(0, frames[startIdx].pos - Math.round(audio.sampleRate * 0.006));
+    const end = Math.min(total, frames[Math.min(frames.length - 1, endIdx)].pos + hop);
+    const ms = ((end - start) / audio.sampleRate) * 1000;
+    if (ms >= minMs) {
+      const sorted = pitches.slice().sort((a, b) => a - b);
+      out.push({ start, end: Math.min(end, start + Math.round((maxMs / 1000) * audio.sampleRate)), pitch: sorted[Math.floor(sorted.length / 2)] });
+    }
+    i = Math.max(i, startIdx + 1);
+  }
+  return out;
 }

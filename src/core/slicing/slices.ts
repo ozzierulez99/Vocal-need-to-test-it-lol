@@ -1,5 +1,5 @@
 import type { AudioData, Slice, SliceAnalysis, SliceCategory, SliceLevel, SourceAudio } from '../types';
-import { analyseRegion, detectOnsets, detectSoundRegions, rmsEnvelope } from '../audio/analysis';
+import { analyseRegion, detectOnsets, detectSoundRegions, rmsEnvelope, findVowels } from '../audio/analysis';
 import { toMono } from '../audio/wav';
 import { uid } from '../ids';
 
@@ -256,7 +256,7 @@ export interface AutoChopResult {
 export function autoChop(
   source: SourceAudio,
   audio: AudioData,
-  opts: { levels?: SliceLevel[]; sensitivity?: number; prefix?: string } = {},
+  opts: { levels?: SliceLevel[]; sensitivity?: number; prefix?: string; vowels?: boolean } = {},
 ): AutoChopResult {
   const levels = opts.levels ?? ['phrase', 'word', 'syllable'];
   const prefix = opts.prefix ?? '';
@@ -282,11 +282,12 @@ export function autoChop(
       if (levels.includes('syllable')) all.push(...kids);
     }
   }
-  const withAnalysis = all.map((s) => {
+  const withAnalysis: Slice[] = all.map((s) => {
     const analysis = analyseSlice(s, audio, gpk);
     const dur = (s.end - s.start) / source.sampleRate;
     return { ...s, analysis, category: suggestCategory(analysis, dur, s.level), tags: ['auto'] };
   });
+  if (levels.includes('sound') || opts.vowels !== false) withAnalysis.push(...mineVowelSlices(source, audio, { prefix, parents: withAnalysis }));
   return { slices: reorder(withAnalysis) };
 }
 
@@ -311,4 +312,27 @@ export function slicePitch(s: Slice, source?: SourceAudio): number | null {
 export function detectSoundRegionsFor(audio: AudioData, start: number, end: number, thresholdDb = -35) {
   const sub = { sampleRate: audio.sampleRate, channels: audio.channels.map((c) => c.subarray(start, end)) };
   return detectSoundRegions(sub, { thresholdDb, minSilenceMs: 60 }).map((r) => ({ start: r.start + start, end: r.end + start }));
+}
+
+
+/**
+ * Vowel mining → sound-level slices ("V1", "V2", …): stable, clearly pitched
+ * stretches that start right at the vowel. Their pitch is measured reliably, so
+ * they tune cleanly and make the best one-shots for melodic chops.
+ */
+export function mineVowelSlices(source: SourceAudio, audio: AudioData, opts: { prefix?: string; parents?: Slice[]; startIndex?: number } = {}): Slice[] {
+  const gpk = globalRmsPeak(audio);
+  const regions = findVowels(audio);
+  const out: Slice[] = [];
+  regions.forEach((r, i) => {
+    const parent = opts.parents?.filter((p) => p.level !== 'sound' && p.start <= r.start + 64 && p.end >= r.end - 64).sort((a, b) => a.end - a.start - (b.end - b.start))[0];
+    const s = makeSlice(source, r.start, r.end, 'sound', { name: `${opts.prefix ?? ''}V${(opts.startIndex ?? 0) + i + 1}`, parentId: parent?.id });
+    const analysis = analyseSlice(s, audio, gpk);
+    // the mined median pitch is more robust than a single-window estimate
+    analysis.pitch = r.pitch;
+    analysis.pitchConfidence = Math.max(analysis.pitchConfidence, 0.85);
+    const dur = (s.end - s.start) / source.sampleRate;
+    out.push({ ...s, analysis, category: dur >= 0.35 ? 'sustained-vowel' : 'short-vowel', tags: ['auto', 'vowel'] });
+  });
+  return out;
 }

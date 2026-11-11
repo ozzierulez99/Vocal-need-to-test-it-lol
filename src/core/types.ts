@@ -60,7 +60,9 @@ export interface SourceAudio {
   assetName: string;
   /** Where the audio originally came from (informational only). */
   originalPath?: string;
-  kind: 'import' | 'recording';
+  kind: 'import' | 'recording' | 'derived';
+  /** For derived sources (e.g. a loop-sustained vowel): what it was made from. */
+  derivedFrom?: { sliceId: string; op: 'sustain'; seconds: number };
   sampleRate: number;
   channelCount: number;
   /** Length in frames. */
@@ -91,6 +93,11 @@ export interface SliceAnalysis {
   pitchConfidence: number;
   /** 0..1 normalised loudness. */
   intensity: number;
+  /**
+   * Frames from the slice start to its perceptual onset (where the vowel/energy
+   * arrives). Events are pre-rolled by this much so the onset lands on the grid.
+   */
+  onset?: number;
 }
 
 export interface Slice {
@@ -130,6 +137,8 @@ export interface Track {
   locked: boolean;
   /** Rhythm lock: regeneration keeps onsets/gates/dynamics and only re-chooses slices & pitches. */
   rhythmLocked?: boolean;
+  /** Choke (sampler-style mono): a new event cuts the previous one on this layer. */
+  choke?: boolean;
   color: string;
   filter?: TrackFilter;
 }
@@ -168,6 +177,20 @@ export interface SeqEvent {
   motifId?: string;
   /** Free-form tag describing the generator's intention (e.g. "call", "answer", "stutter"). */
   gesture?: string;
+  /** Pitch scoop at the start: [semitone offset at the start, milliseconds to reach the note]. */
+  glideIn?: [number, number];
+  /** Pitch fall/rise at the end: [semitone offset reached at the end, milliseconds]. Tape-stop = negative. */
+  glideOut?: [number, number];
+  /** Set false to start the slice exactly on the grid instead of pre-rolling to its onset. */
+  align?: boolean;
+}
+
+/** Sequence-wide feel applied at playback/export time (non-destructive). */
+export interface Groove {
+  /** 0..0.5 – delay of off-beat sixteenths as a fraction of a sixteenth (0.33 ≈ triplet swing). */
+  swing: number;
+  /** 0..1 – small deterministic timing and level variations. */
+  humanize: number;
 }
 
 export type MotifProtection = 'preserve' | 'develop' | 'transform' | 'replace';
@@ -406,6 +429,18 @@ export interface Candidate {
   createdAt: number;
   /** Candidate generated as a variation of another. */
   parentId?: string;
+  /** Feel (swing / humanise) that belongs to this idea. */
+  groove?: Groove;
+  /** Hook critic result: 0–100 plus the reasons behind it. */
+  score?: HookScore;
+}
+
+export interface HookScore {
+  total: number;
+  parts: { rhythm: number; melody: number; sound: number; fit: number };
+  /** short human-readable reasons, best first */
+  good: string[];
+  watch: string[];
 }
 
 export interface Sequence {
@@ -424,6 +459,7 @@ export interface Sequence {
   grid: number;
   snap: boolean;
   settings: GeneratorSettings;
+  groove?: Groove;
 }
 
 export interface SliceCollection {

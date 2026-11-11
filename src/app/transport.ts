@@ -5,7 +5,7 @@ import { useStore } from './store/store';
 
 const st = () => useStore.getState();
 
-const candSeqCache = new Map<string, { key: Candidate; bpm: number; seq: { events: Candidate['events']; tracks: Candidate['tracks']; bpm: number } }>();
+const candSeqCache = new Map<string, { key: Candidate; bpm: number; seq: { events: Candidate['events']; tracks: Candidate['tracks']; bpm: number; groove?: Candidate['groove'] } }>();
 
 function target() {
   const { doc, ui } = st();
@@ -14,7 +14,7 @@ function target() {
     if (c) {
       const hit = candSeqCache.get(c.id);
       if (hit && hit.key === c && hit.bpm === doc.sequence.bpm) return hit.seq;
-      const seq = { events: c.events, tracks: c.tracks, bpm: doc.sequence.bpm };
+      const seq = { events: c.events, tracks: c.tracks, bpm: doc.sequence.bpm, groove: c.groove ?? doc.sequence.groove };
       candSeqCache.set(c.id, { key: c, bpm: doc.sequence.bpm, seq });
       return seq;
     }

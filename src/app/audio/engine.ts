@@ -1,5 +1,5 @@
 import type { AudioData, Sequence, Slice, SourceAudio, Track } from '../../core/types';
-import { buildPlan, type PlannedEvent } from '../../core/audio/plan';
+import { buildPlan, framesConsumed, pitchEnvAt, type PlannedEvent } from '../../core/audio/plan';
 import { ticksToSeconds, secondsToTicks, dbToGain } from '../../core/time';
 import { envelopeAt } from '../../core/audio/render';
 
@@ -8,7 +8,7 @@ import { envelopeAt } from '../../core/audio/render';
  * as the offline renderer and schedules AudioBufferSourceNodes with a lookahead
  * scheduler (sample-accurate start times on the audio clock).
  */
-type SeqLike = Pick<Sequence, 'events' | 'tracks' | 'bpm'>;
+type SeqLike = Pick<Sequence, 'events' | 'tracks' | 'bpm'> & { groove?: Sequence['groove'] };
 
 export interface PlayRequest {
   seq: () => SeqLike;
@@ -267,7 +267,7 @@ class Session {
    * [from, until) of elapsed playback time, handling a start from the middle of
    * an item and loop cycles. `skip` = seconds already elapsed inside the item.
    */
-  private forEachDue<T extends { time: number; duration: number }>(items: T[], from: number, until: number, cb: (item: T, when: number, skip: number, maxDur: number) => void) {
+  private forEachDue<T extends { time: number; duration: number; gridTime?: number }>(items: T[], from: number, until: number, cb: (item: T, when: number, skip: number, maxDur: number) => void) {
     const bpm = this.req.seq().bpm;
     const loop = this.req.loop && this.req.loop.endTick > this.req.loop.startTick ? this.req.loop : null;
     const t0 = ticksToSeconds(this.originTick, bpm);
@@ -276,7 +276,7 @@ class Session {
       for (const p of items) {
         const rel = p.time - t0;
         if (from === 0 && rel < 0 && p.time + p.duration > t0) cb(p, this.startTime, t0 - p.time, Infinity);
-        else if (rel >= from && rel < until && p.time < end) cb(p, this.startTime + rel, 0, Infinity);
+        else if (rel >= from && rel < until && (p.gridTime ?? p.time) < end) cb(p, this.startTime + rel, 0, Infinity);
       }
       return;
     }
@@ -285,7 +285,8 @@ class Session {
     const len = le - ls;
     // first (partial) pass from origin to loop end, then full cycles
     for (const p of items) {
-      if (p.time < ls || p.time >= le) continue;
+      const grid = p.gridTime ?? p.time; // membership by musical position; audio may pre-roll slightly earlier
+      if (grid < ls - 1e-9 || grid >= le) continue;
       const firstRel = p.time - t0;
       if (from === 0 && firstRel < 0 && p.time + p.duration > t0) cb(p, this.startTime, t0 - p.time, le - p.time);
       // occurrence k: k = 0 is the first pass (from the origin), k ≥ 1 are full loop cycles
@@ -374,7 +375,9 @@ class Session {
     const pan = ctx.createStereoPanner();
     pan.pan.value = p.pan;
     const startFrame = p.reverse ? total - (p.srcStart + p.srcFrames) : p.srcStart;
-    const offsetSec = startFrame / sr + skip * p.rate;
+    const glide = !!(p.glideIn || p.glideOut);
+    const consumed = glide ? framesConsumed(p, sr, skip) : skip * p.rate * sr;
+    const offsetSec = startFrame / sr + consumed / sr;
     const remaining = dur - skip;
     const fadeOut = Math.min(p.fadeOut, dur / 2);
     const t = Math.max(when, ctx.currentTime);
@@ -385,7 +388,18 @@ class Session {
     if (fo > t) g.gain.setValueAtTime(p.gain * envelopeAt(dur - fadeOut, dur, p.fadeIn, fadeOut), fo);
     g.gain.linearRampToValueAtTime(0, t + remaining);
     src.connect(g).connect(pan).connect(this.buses.get(p.trackId) ?? this.master);
-    src.start(t, offsetSec, remaining * p.rate);
+    if (glide) {
+      // pitch envelope: linear in semitones = exponential in playback rate (same curve as the renderer)
+      const r = src.playbackRate;
+      r.setValueAtTime(p.rate * Math.pow(2, pitchEnvAt(p, skip) / 12), t);
+      if (p.glideIn && skip < p.glideIn.sec) r.exponentialRampToValueAtTime(p.rate, t + (p.glideIn.sec - skip));
+      if (p.glideOut) {
+        const s0 = p.duration - p.glideOut.sec;
+        if (s0 > skip) r.setValueAtTime(p.rate, t + (s0 - skip));
+        r.exponentialRampToValueAtTime(p.rate * Math.pow(2, p.glideOut.semis / 12), t + (p.duration - skip));
+      }
+      src.start(t, offsetSec, Math.max(0.001, (p.srcFrames - consumed) / sr));
+    } else src.start(t, offsetSec, remaining * p.rate);
     this.engine.debugSchedule?.push({ eventId: p.eventId, at: t - this.startTime, offset: offsetSec, duration: remaining, rate: p.rate });
     src.stop(t + remaining + 0.01);
     this.nodes.add(src);

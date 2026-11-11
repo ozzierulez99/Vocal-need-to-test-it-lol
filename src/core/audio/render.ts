@@ -1,6 +1,6 @@
 import type { AudioData, Sequence, Slice, SourceAudio, TrackFilter } from '../types';
-import { buildPlan, panGains, trackFilters, type PlannedEvent } from './plan';
-import { ticksToFrames, ticksPerBar } from '../time';
+import { buildPlan, panGains, trackFilters, pitchEnvAt, type PlannedEvent } from './plan';
+import { ticksToFrames, ticksPerBar, ticksToSeconds } from '../time';
 import { toMono } from './wav';
 
 /**
@@ -70,11 +70,17 @@ export function mixEvent(
   const L = out[0];
   const R = out[1];
   const maxPos = ev.srcFrames - 1;
+  const glide = !!(ev.glideIn || ev.glideOut);
+  let acc = 0; // source position for events with a pitch envelope
   for (let k = 0; k < outFrames; k++) {
     const o = outStart + k;
+    let pos: number;
+    if (glide) {
+      pos = acc;
+      acc += step * Math.pow(2, pitchEnvAt(ev, (k + 0.5) / outRate) / 12);
+    } else pos = k * step;
     if (o < 0) continue;
     if (o >= L.length) break;
-    let pos = k * step;
     if (pos > maxPos) pos = maxPos;
     const idx = ev.reverse ? ev.srcStart + maxPos - pos : ev.srcStart + pos;
     const env = ev.gain * envelopeAt(k / outRate, ev.duration, ev.fadeIn, ev.fadeOut);
@@ -121,7 +127,7 @@ export function applyFilter(ch: Float32Array, sr: number, f: TrackFilter): void 
 }
 
 export function renderSequence(
-  seq: Pick<Sequence, 'events' | 'tracks' | 'bpm' | 'timeSig' | 'bars'>,
+  seq: Pick<Sequence, 'events' | 'tracks' | 'bpm' | 'timeSig' | 'bars'> & { groove?: Sequence['groove'] },
   slices: Slice[],
   sources: SourceAudio[],
   audio: Map<string, AudioData>,
@@ -130,6 +136,7 @@ export function renderSequence(
   const sr = opts.sampleRate;
   const startTick = opts.startTick ?? 0;
   const endTick = opts.endTick ?? seq.bars * ticksPerBar(seq.timeSig);
+  const outStartOf = (p: PlannedEvent) => ticksToFrames(p.tick - startTick, seq.bpm, sr) + Math.round((p.time - ticksToSeconds(p.tick, seq.bpm)) * sr);
   const plan = buildPlan(seq, slices, sources, {
     bpm: seq.bpm,
     clickFadeMs: opts.clickFadeMs,
@@ -141,7 +148,7 @@ export function renderSequence(
   const baseFrames = ticksToFrames(endTick - startTick, seq.bpm, sr);
   let lastEnd = baseFrames;
   for (const p of plan) {
-    const e = ticksToFrames(p.tick - startTick, seq.bpm, sr) + Math.ceil(p.duration * sr) + 1;
+    const e = outStartOf(p) + Math.ceil(p.duration * sr) + 1;
     if (e > lastEnd) lastEnd = e;
   }
   const tail = opts.tail ?? 'cut';
@@ -159,8 +166,7 @@ export function renderSequence(
     const f = filters.get(trackId);
     const bus = f ? [new Float32Array(totalFrames), new Float32Array(totalFrames)] : [mixL, mixR];
     for (const p of evs) {
-      const outStart = ticksToFrames(p.tick - startTick, seq.bpm, sr);
-      mixEvent(bus, outStart, p, audio.get(p.sourceId)!, sr);
+      mixEvent(bus, outStartOf(p), p, audio.get(p.sourceId)!, sr);
     }
     if (f) {
       applyFilter(bus[0], sr, f);
