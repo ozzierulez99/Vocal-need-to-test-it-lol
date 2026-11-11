@@ -16,7 +16,9 @@ export interface Material {
   sustain: number;
   noisiness: number;
   intensity: number;
-  scores: { hook: number; perc: number; pad: number; ending: number; breath: number; accent: number };
+  scores: { hook: number; perc: number; pad: number; ending: number; breath: number; accent: number; oneshot: number };
+  /** gain trim (dB) that brings this slice to a common level */
+  trim: number;
 }
 
 const CAT_BONUS: Record<string, Partial<Record<keyof Material['scores'], number>>> = {
@@ -75,8 +77,15 @@ export function buildMaterial(slices: Slice[], sources: SourceAudio[], c: Creati
       ending: (0.3 + sustain) * gauss(Math.log(dur), Math.log(0.45), 0.8) * (cat.ending ?? 1) * fav,
       breath: (0.1 + noisiness) * (1.2 - intensity * 0.5) * (cat.breath ?? 1) * roleBonus('transition'),
       accent: (0.3 + attack) * (0.4 + intensity) * (cat.accent ?? 1) * fav * roleBonus('accent'),
+      // one-shot: a clean, clearly pitched vowel that can be played like a sampler instrument
+      oneshot:
+        (pitch !== null ? 1 : 0.08) * (0.3 + (a?.pitchConfidence ?? 0.5)) * gauss(Math.log(dur), Math.log(0.24), 0.75) * (1 - noisiness) *
+        (0.5 + intensity) * (slice.tags.includes('vowel') ? 1.7 : 1) * (slice.level === 'phrase' ? 0.2 : slice.level === 'word' ? 0.7 : 1) * fav * roleBonus('lead'),
     };
-    out.push({ slice, source, dur, pitch, attack, sustain, noisiness, intensity, scores });
+    // auto-level: bring every slice to a similar peak so chops sit evenly
+    const pk = a?.peak ?? 0;
+    const trim = pk > 0.001 ? Math.max(-6, Math.min(10, 20 * Math.log10(0.6 / pk))) : 0;
+    out.push({ slice, source, dur, pitch, attack, sustain, noisiness, intensity, scores, trim: Math.round(trim * 10) / 10 });
   }
   return out;
 }
@@ -101,6 +110,8 @@ export interface Cast {
   breath: Material[];
   accent: Material[];
   all: Material[];
+  /** the best one-shot vowel: the "instrument" for sampler-style leads */
+  voice: Material;
 }
 
 export function castMaterial(rng: Rng, mats: Material[], c: CreativeControls): Cast {
@@ -114,7 +125,9 @@ export function castMaterial(rng: Rng, mats: Material[], c: CreativeControls): C
   const endingPool = pickTop(rng, mats, 'ending', 2, 0.3);
   const breath = pickTop(rng, mats, 'breath', 2, 0.3);
   const accent = pickTop(rng, mats, 'accent', 2, 0.3);
+  const voice = pickTop(rng, mats, 'oneshot', 1, 0.2 + c.surprise * 0.4)[0] ?? hook[0];
   return {
+    voice,
     hook,
     support: support.length ? support : hook,
     perc: perc.length ? perc : hook,

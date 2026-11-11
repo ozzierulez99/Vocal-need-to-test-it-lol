@@ -402,13 +402,16 @@ export function writeConversation(ctx: Ctx, form: Section[], matsA: Material[], 
       }
       case 'complementary': {
         fill(a, mA, start, end, { gesture: 'call' });
-        const occupied = (t: number) => a.some((n) => t >= n.tick && t < n.tick + Math.max(ctx.step, n.length));
+        // hocket: B takes the eighths where A has no onset nearby, and A lets go when B enters
+        const aHere = a.filter((n) => n.tick >= start && n.tick < end);
+        const nearOnset = (t: number) => aHere.some((n) => Math.abs(n.tick - t) < ctx.step * 1.5);
         const pool = castB.perc.concat(castB.hook);
         let k = 0;
         for (let t = start; t < end; t += ctx.step * 2) {
-          if (occupied(t)) continue;
+          if (nearOnset(t)) continue;
           const m = pool[k++ % pool.length];
           b.push(note({ tick: t, length: Math.min(ctx.step * 2, naturalTicks(ctx, m)), sliceId: m.slice.id, velocity: 0.7, gesture: 'hocket' }));
+          for (const n of aHere) if (n.tick < t && n.tick + n.length > t) n.length = Math.max(1, t - n.tick);
         }
         break;
       }

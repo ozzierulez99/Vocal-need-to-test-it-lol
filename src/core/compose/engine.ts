@@ -11,15 +11,18 @@ import type {
   BeatContext,
 } from '../types';
 import { buildMaterial, castMaterial, describeMaterial, type Material } from './material';
-import { makeCtx, type Ctx, type Note } from './context';
+import { makeCtx, voiceTonic, hookSemis, type Ctx, type Note } from './context';
+import { ornament } from './ornaments';
+import { clamp } from '../time';
+import type { Groove } from '../types';
 import { planForm, describeForm } from './form';
 import { createMotif, transformMotif, motifFromEvents } from './motif';
-import { writeMotifLead, writeResponse, writeRhythm, writeAtmosphere, writeAccents, writeTransitions, applyCuts } from './writers';
+import { writeMotifLead, writeResponse, writeRhythm, writeAtmosphere, writeAccents, writeTransitions, applyCuts, applyTapeStops } from './writers';
 import { writePhraseLead, writeMicroLead, writeMidiLead, writeConversation } from './modes';
 import { DIRECTIONS, FEEL_LABELS } from './directions';
 import { ticksPerBar } from '../time';
 import { Rng } from '../rng';
-import { effectiveKey, harmonize } from '../beat/fit';
+import { effectiveKey, harmonize, chordAt, tuneToScale } from '../beat/fit';
 import { keyName } from '../beat/analyze';
 
 export const MODE_LABELS: Record<GeneratorSettings['mode'], string> = {
@@ -66,6 +69,8 @@ export interface GenerateOutput {
   events: SeqEvent[];
   motifs: Motif[];
   description: string[];
+  /** feel that belongs to the style (swing / humanise), applied at playback and export */
+  groove: Groove;
 }
 
 export function defaultLayers(mode: GeneratorSettings['mode'], s: GeneratorSettings): Role[] {
@@ -150,13 +155,21 @@ export function generate(input: GenerateInput): GenerateOutput {
   if (!mats.length) throw new Error('No usable slices: import audio and create slices first (or check that sources are not missing).');
   const cast = castMaterial(new Rng(`${s.seed}|cast`), mats, s.controls);
   const ctx = makeCtx(s, input.bpm, input.timeSig, mats, cast, beat);
+  const purpose = s.purpose ?? 'hook';
+  // purpose scales how busy the part is; half-time phrasing needs longer phrases to develop in
+  const densityMul = { hook: 1, verse: 0.7, build: 1, drop: 1.15, intro: 0.8, outro: 0.8 }[purpose];
+  ctx.prof = { ...ctx.prof, density: clamp(ctx.prof.density * densityMul, 0.04, 0.95) };
+  if (ctx.half && (s.mode === 'melodic') && ctx.phraseBars < 4 && ctx.bars >= ctx.phraseBars * 4) ctx.phraseBars *= 2;
   const form = planForm(ctx, s.mode);
-  const layersWanted = (s.layers.length ? s.layers : defaultLayers(s.mode, s)).slice();
+  let layersWanted = (s.layers.length ? s.layers : defaultLayers(s.mode, s)).slice();
+  // builds and drops are one continuous line: no call-and-response gaps unless the user asks for a response layer
+  if (!s.layers.length && (purpose === 'build' || purpose === 'drop') && s.mode !== 'conversation') layersWanted = layersWanted.filter((r) => r !== 'response');
   if (s.mode !== 'conversation' && !layersWanted.includes('lead')) layersWanted.unshift('lead');
   const head = [
     `${MODE_LABELS[s.mode]} · ${DIRECTIONS[s.direction].label} · ${FEEL_LABELS[ctx.feel]} feel · seed ${s.seed}`,
     `Form: ${describeForm(form)}`,
   ];
+  if (purpose !== 'hook') head.push(`Purpose: ${{ verse: 'verse bed – answers in the second half of each phrase', build: 'build-up – thin to dense, fill into the drop', drop: 'drop lead – full energy, octave doubles', intro: 'intro – the hook assembles gradually', outro: 'outro – the hook dissolves' }[purpose]}`);
   if (beat) head.push(`Fitted to beat “${beat.name}”: ${keyName(effectiveKey(beat).root, effectiveKey(beat).scale)}, ${beat.chords.map((c) => c.symbol).join('–')}`);
   const layers: Layer[] = [];
   const motifs: Motif[] = [];
@@ -196,6 +209,7 @@ export function generate(input: GenerateInput): GenerateOutput {
     }
     if (central) motifs.push(central);
     let transitionCuts: { start: number; end: number }[] = [];
+    let tapeStops: number[] = [];
     const extra: Layer[] = [];
     for (const role of layersWanted) {
       if (role === 'lead') continue;
@@ -210,13 +224,43 @@ export function generate(input: GenerateInput): GenerateOutput {
       if (role === 'transition') {
         const t = writeTransitions(ctx, form);
         transitionCuts = t.cuts;
+        tapeStops = t.tapeStops;
         extra.push({ key: 'transition', role, name: TRACK_NAMES.transition, notes: t.notes });
       }
     }
-    leadNotes = applyCuts(leadNotes, transitionCuts);
+    leadNotes = applyCuts(applyTapeStops(ctx, leadNotes, tapeStops), transitionCuts);
     for (const l of extra) if (l.role === 'response' || l.role === 'rhythm') l.notes = applyCuts(l.notes, transitionCuts);
+    // production devices: scoops, falls, octave jumps, doubles, echo throws, gates
+    if (s.mode === 'melodic' || s.mode === 'rhythmic' || s.mode === 'ghost' || s.mode === 'phrase') {
+      const o = ornament(ctx, form, leadNotes, central);
+      leadNotes = o.lead;
+      ctx.log.push(...o.log);
+      const fx = applyCuts(o.extra, transitionCuts);
+      if (fx.length) extra.push({ key: 'ornament', role: 'accent', name: 'Echoes & doubles', notes: fx });
+    }
     layers.push({ key: 'lead', role: 'lead', name: s.mode === 'phrase' ? 'Reconstructed phrase' : s.mode === 'ghost' ? 'Ghost hook' : TRACK_NAMES.lead, notes: leadNotes }, ...extra);
   }
+
+  // Vocal arps: every arp note takes a tone of the chord underneath (or of the tonic triad without a beat).
+  for (const l of layers) {
+    for (const n of l.notes) {
+      if (n.arp === undefined) continue;
+      const mat = ctx.matById.get(n.sliceId);
+      if (!mat || mat.pitch === null || !s.transpose) continue;
+      const chord = beat ? chordAt(beat, n.tick) : null;
+      const rootPc = chord && chord.quality !== 'note' ? chord.root : s.keyRoot ?? ((Math.round(mat.pitch) % 12) + 12) % 12;
+      const ivs = chord && chord.quality !== 'note' ? chord.pcs.map((pc) => (pc - chord.root + 12) % 12).sort((a, b) => a - b) : [0, ctx.scale.includes(4) ? 4 : 3, 7];
+      const tonic = voiceTonic(ctx, mat);
+      let root = rootPc;
+      for (let t = rootPc - 24; t < 128; t += 12) if (Math.abs(t - tonic) < Math.abs(root - tonic)) root = t;
+      const target = root + ivs[n.arp % ivs.length] + 12 * Math.floor(n.arp / ivs.length);
+      let semis = target - mat.pitch;
+      while (semis > 14) semis -= 12;
+      while (semis < -14) semis += 12;
+      n.semitones = Math.round(semis * 100) / 100;
+    }
+  }
+  void hookSemis;
 
   if (beat && beat.fit.harmonize && s.transpose) {
     // harmonise pitched material to the chord underneath (a preserved motif stays exactly as it is)
@@ -226,14 +270,24 @@ export function generate(input: GenerateInput): GenerateOutput {
       n += harmonize(l.notes, beat, (id) => ctx.matById.get(id)?.pitch ?? null, {
         beatTicks: ctx.beat,
         role: l.role,
-        skip: (x) => !!preserved && x.motifId === preserved.id && x.gesture === 'motif',
+        skip: (x) => (x as Note).arp !== undefined || (!!preserved && x.motifId === preserved.id && x.gesture === 'motif'),
       });
     }
     if (n) ctx.log.push(`Harmonised ${n} note(s) to the chord underneath (playback-rate pitch)`);
   }
 
+  if (!(beat && beat.fit.harmonize) && s.transpose && s.keyRoot !== null && s.mode !== 'midi') {
+    // no chords to follow: still keep every pitched layer in tune and in key (pads, swells, echoes…)
+    const preserved = motifs.find((m) => m.important && m.protection === 'preserve');
+    let n = 0;
+    for (const l of layers) n += tuneToScale(l.notes.filter((x) => !(preserved && x.motifId === preserved.id && x.gesture === 'motif')), (id) => ctx.matById.get(id)?.pitch ?? null, s.keyRoot, s.scale);
+    if (n) ctx.log.push(`Tuned ${n} note(s) to the key`);
+  }
+
   const result = assemble(ctx, input, layers, motifs);
   result.description = [...head, ...ctx.log];
+  result.groove = { swing: Math.max(ctx.prof.swing, ctx.prof.traits.swing), humanize: ctx.prof.traits.humanize };
+  if (result.groove.swing) result.description.push(`Groove: ${Math.round(result.groove.swing * 100)}% sixteenth swing${result.groove.humanize ? ', light humanise' : ''}`);
   return result;
 }
 
@@ -266,7 +320,9 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
     if (t) usedExisting.add(t.id);
     // an empty placeholder track adopts the generated layer's identity
     if (t && !(ex?.events ?? []).some((e) => e.trackId === t!.id)) t = { ...t, name: l.name, role: l.role, color: ROLE_COLORS[l.role] };
-    trackFor.set(l.key, t ? { ...t } : { id, name: l.name, role: l.role, mute: false, solo: false, gain: 0, pan: 0, locked: false, color: ROLE_COLORS[l.role] });
+    // sampler-style layers choke: a new chop cuts the one before it
+    const choke = l.key !== 'ornament' && (l.role === 'lead' || l.role === 'response' || l.role === 'rhythm' || l.role === 'transition');
+    trackFor.set(l.key, t ? { ...t } : { id, name: l.name, role: l.role, mute: false, solo: false, gain: 0, pan: 0, locked: false, color: ROLE_COLORS[l.role], choke });
   }
   const trackById = new Map(exTracks.map((t) => [t.id, t]));
   const inScopeTrack = (trackId: string) => !scope?.trackIds || scope.trackIds.includes(trackId);
@@ -311,7 +367,8 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
         tick: Math.round(nt.tick),
         length,
         offset: Math.max(0, Math.round(nt.offset)),
-        gain: Math.round(nt.gain * 10) / 10,
+        // auto-level: quiet and loud slices are brought to a common level
+        gain: Math.round((nt.gain + (ctx.matById.get(nt.sliceId)?.trim ?? 0)) * 10) / 10,
         semitones: nt.semitones,
         reverse: nt.reverse,
         fadeIn: nt.fadeIn,
@@ -323,6 +380,9 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
         motifId: nt.motifId,
         gesture: nt.gesture,
       };
+      if (nt.glideIn) ev.glideIn = nt.glideIn;
+      if (nt.glideOut) ev.glideOut = nt.glideOut;
+      if (nt.align === false) ev.align = false;
       if (lockedKept.some((k) => k.trackId === ev.trackId && eventOverlaps(k, ev))) continue;
       while (keptIds.has(ev.id)) ev.id = `${ev.id}x`;
       layerEvents.push(ev);
@@ -362,7 +422,7 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
   const events = [...kept, ...newEvents].sort((a, b) => a.tick - b.tick || a.trackId.localeCompare(b.trackId));
   // motifs: keep user motifs, replace generated ones
   const userMotifs = (ex?.motifs ?? []).filter((m) => m.important && !motifs.some((x) => x.id === m.id));
-  return { tracks, events, motifs: [...motifs, ...userMotifs], description: [] };
+  return { tracks, events, motifs: [...motifs, ...userMotifs], description: [], groove: { swing: 0, humanize: 0 } };
 }
 
 export function defaultSettings(partial: Partial<GeneratorSettings> = {}): GeneratorSettings {

@@ -1,7 +1,8 @@
 import type { Motif, MotifNote, MotifProtection } from '../types';
 import type { Rng } from '../rng';
 import type { Ctx } from './context';
-import { semisFor, pickByPitch, naturalTicks, cloneNotes } from './context';
+import { semisFor, pickByPitch, naturalTicks, cloneNotes, semisForStep } from './context';
+import { composeHook, composeArpHook, questionStep, tonicStep } from './hook';
 import type { Material } from './material';
 import { describeMaterial } from './material';
 import { applyDensity, chooseBarCells, parseCell, euclid } from './rhythm';
@@ -22,6 +23,12 @@ export function createMotif(ctx: Ctx, kind: MotifKind, id = 'motif-main', pool?:
   const support = pool ?? ctx.cast.support;
   const notes: MotifNote[] = [];
   let span = ctx.bar;
+
+  // Hooks are written by the hook grammar whenever pitch is realised by transposition.
+  if ((kind === 'melodic' || kind === 'rhythmic') && ctx.s.transpose) {
+    const wantsArp = kind === 'melodic' && ctx.rng(`arp?:${id}`).chance(prof.traits.arp * (ctx.song?.chords.length ? 1 : 0.35)) && ctx.cast.voice.pitch !== null;
+    return wantsArp && !pool ? composeArpHook(ctx, id) : composeHook(ctx, kind, id, pool);
+  }
 
   if (kind === 'ghost') {
     span = ctx.bar * Math.min(2, ctx.phraseBars) * (prof.stride >= 4 ? 1 : 1);
@@ -121,7 +128,9 @@ export type DevOp =
   | 'reverse-some'
   | 'densify'
   | 'simplify'
-  | 'transpose';
+  | 'transpose'
+  | 'question'
+  | 'resolve';
 
 /** Apply one development operation. Respects the motif's protection level. */
 export function develop(ctx: Ctx, rng: Rng, m: Motif, op: DevOp, protection: MotifProtection = m.protection): Motif {
@@ -133,9 +142,26 @@ export function develop(ctx: Ctx, rng: Rng, m: Motif, op: DevOp, protection: Mot
   const last = notes.length - 1;
   const mat = (id: string) => ctx.matById.get(id);
   switch (op) {
+    case 'question':
+    case 'resolve': {
+      // phrase endings: a question hangs on an unstable step, an answer comes home to the tonic
+      const n = notes[last];
+      if (!n || last < head || n.step === undefined || n.arp !== undefined) break;
+      n.step = op === 'resolve' ? tonicStep(ctx, n.step) : questionStep(ctx, rng, n.step);
+      n.semitones = semisForStep(ctx, mat(n.sliceId), n.step);
+      n.length = Math.min(Math.max(n.length, ctx.beat), m.span - n.tick);
+      break;
+    }
     case 'vary-ending': {
       if (last < head || last < 0) break;
       const n = notes[last];
+      if (n.step !== undefined && n.arp === undefined) {
+        // keep the voice, change where the phrase lands
+        n.step = questionStep(ctx, rng, n.step);
+        n.semitones = semisForStep(ctx, mat(n.sliceId), n.step);
+        n.length = Math.min(Math.max(n.length, ctx.beat), m.span - n.tick);
+        break;
+      }
       const alt = rng.chance(0.5) ? ctx.cast.ending : rng.pick([...ctx.cast.support, ...ctx.cast.hook]);
       n.sliceId = alt.slice.id;
       n.semitones = semisFor(ctx, alt, rng.pick([-2, -1, 1, 3]));
@@ -148,7 +174,7 @@ export function develop(ctx: Ctx, rng: Rng, m: Motif, op: DevOp, protection: Mot
       if (i < 0) break;
       const alt = rng.pick([...ctx.cast.support, ...ctx.cast.hook].filter((x) => x.slice.id !== notes[i].sliceId).concat(ctx.cast.support[0]));
       notes[i].sliceId = alt.slice.id;
-      notes[i].semitones = semisFor(ctx, alt, rng.int(-1, 2));
+      notes[i].semitones = notes[i].step !== undefined ? semisForStep(ctx, alt, notes[i].step!) : semisFor(ctx, alt, rng.int(-1, 2));
       notes[i].offset = 0;
       break;
     }
@@ -206,7 +232,15 @@ export function develop(ctx: Ctx, rng: Rng, m: Motif, op: DevOp, protection: Mot
       if (last >= head) notes.splice(last, 1);
       const src = notes[0] ?? n;
       for (let t = startT, k = 0; t < m.span; t += rollStep, k++)
-        notes.push({ ...src, tick: t, length: rollStep * 0.8, accent: k === 0 ? 0.8 : 0.3 + (k / 8) * 0.5, semitones: src.semitones + (ctx.s.transpose && rng.chance(0.5) ? Math.min(7, k) : 0) });
+        notes.push({
+          ...src,
+          tick: t,
+          length: rollStep * 0.8,
+          accent: k === 0 ? 0.8 : 0.3 + (k / 8) * 0.5,
+          arp: undefined,
+          // the roll climbs the hook scale (in key) rather than chromatically
+          semitones: src.step !== undefined ? semisForStep(ctx, mat(src.sliceId), src.step + Math.floor(k / 2)) : src.semitones + (ctx.s.transpose && rng.chance(0.5) ? Math.min(7, k) : 0),
+        });
       break;
     }
     case 'simplify': {
@@ -220,8 +254,19 @@ export function develop(ctx: Ctx, rng: Rng, m: Motif, op: DevOp, protection: Mot
     }
     case 'transpose': {
       if (!ctx.s.transpose) break;
+      const idxs = editable.length ? editable : notes.map((_, k) => k);
+      if (idxs.every((i) => notes[i].step !== undefined)) {
+        // melodic sequence: the same shape one or two scale steps away (stays in key)
+        const d = rng.pick([1, 2, -1]);
+        for (const i of idxs) {
+          if (notes[i].arp !== undefined) continue;
+          notes[i].step = notes[i].step! + d;
+          notes[i].semitones = semisForStep(ctx, mat(notes[i].sliceId), notes[i].step!);
+        }
+        break;
+      }
       const up = rng.pick([2, 3, -2]);
-      for (const i of editable.length ? editable : notes.map((_, k) => k)) {
+      for (const i of idxs) {
         notes[i].semitones = clamp(semisFor(ctx, mat(notes[i].sliceId), 0) + (notes[i].semitones - semisFor(ctx, mat(notes[i].sliceId), 0)) + up, -12, 12);
       }
       break;
@@ -245,11 +290,44 @@ export function transformMotif(ctx: Ctx, rng: Rng, m: Motif): Motif {
  */
 export function answerMotif(ctx: Ctx, rng: Rng, call: Motif, pool: Material[], id: string, style: 'imitate' | 'complement' = rng.chance(0.5) ? 'imitate' : 'complement'): Motif {
   const notes: MotifNote[] = [];
+  const stepped = ctx.s.transpose && call.notes.length > 0 && call.notes.every((n) => n.step !== undefined);
+  // the answering voice: one clean slice (sampler-style), like the call
+  const answerVoice = pool.slice().sort((a, b) => b.scores.oneshot - a.scores.oneshot)[0] ?? pool[0];
+  if (stepped) {
+    const s0 = call.notes[0].step!;
+    if (style === 'complement') {
+      // speak in the call's rests
+      const occupied = new Set(call.notes.map((n) => Math.round(n.tick / ctx.step)));
+      const steps = Math.round(call.span / ctx.step);
+      const stable = [tonicStep(ctx, s0), s0, s0 + 1];
+      let k = 0;
+      for (let st = 2; st < steps; st += 2) {
+        if (occupied.has(st) || occupied.has(st - 1) || occupied.has(st + 1)) continue;
+        if (!rng.chance(0.6 + ctx.prof.density * 0.3)) continue;
+        const stp = stable[(k + 1) % stable.length];
+        notes.push({ tick: st * ctx.step, length: Math.min(naturalTicks(ctx, answerVoice), ctx.step * 2), sliceId: answerVoice.slice.id, semitones: semisForStep(ctx, answerVoice, stp), offset: 0, reverse: false, accent: k === 0 ? 1 : 0.4, step: stp });
+        k++;
+      }
+    }
+    if (notes.length < 2) {
+      // imitate: the call's rhythm thinned out, its contour mirrored, coming home to the tonic
+      notes.length = 0;
+      const keep = call.notes.filter((n, i) => call.notes.length <= 4 || n.accent > 0.5 || i % 2 === 0);
+      keep.forEach((n, i) => {
+        const last = i === keep.length - 1;
+        const stp = last ? tonicStep(ctx, s0) : 2 * s0 - n.step!;
+        const semis = semisForStep(ctx, answerVoice, stp);
+        notes.push({ ...n, sliceId: answerVoice.slice.id, semitones: semis, offset: 0, reverse: false, step: stp, arp: undefined, length: last ? Math.min(naturalTicks(ctx, answerVoice, semis), Math.max(n.length, ctx.beat)) : Math.min(n.length, naturalTicks(ctx, answerVoice, semis)) });
+      });
+      style = 'imitate';
+    }
+    return { id, name: `Answer (${style})`, span: call.span, notes, protection: 'develop', important: false };
+  }
   if (style === 'imitate') {
     call.notes.forEach((n, i) => {
       const m = pool[i % pool.length];
       const deg = i === call.notes.length - 1 ? -2 : -contourAt('arch', i / Math.max(1, call.notes.length - 1), 1);
-      notes.push({ ...n, sliceId: m.slice.id, semitones: semisFor(ctx, m, deg), offset: 0, reverse: false });
+      notes.push({ ...n, sliceId: m.slice.id, semitones: semisFor(ctx, m, deg), offset: 0, reverse: false, step: undefined, arp: undefined });
     });
   } else {
     // place hits in the call's rests on an 8th grid

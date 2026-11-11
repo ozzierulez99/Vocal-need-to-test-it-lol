@@ -1,6 +1,8 @@
 import type { Role, Candidate, CreativeControls, GeneratorSettings, Motif, Sequence, SeqEvent, Track, RhythmFeel } from '../types';
 import { generate, defaultLayers, type GenerateInput } from './engine';
 import { computeMetrics, similarity } from './metrics';
+import { scoreHook } from './critic';
+import type { HookScore, Groove } from '../types';
 import { clamp, ticksPerBar } from '../time';
 import { Rng } from '../rng';
 import { buildMaterial } from './material';
@@ -73,27 +75,35 @@ function candId() {
 export interface CandidateRequest extends GenerateInput {
   count?: number;
   bars: number;
+  /** attempts per idea for the hook critic to choose from (default 4) */
+  attempts?: number;
 }
 
 export function generateCandidates(req: CandidateRequest): Candidate[] {
   const count = clamp(req.count ?? 6, 1, PROFILES.length);
   const base = req.settings;
-  const raw: { profile: Profile; settings: GeneratorSettings; out: ReturnType<typeof generate>; metrics: ReturnType<typeof computeMetrics> }[] = [];
+  type Raw = { profile: Profile; settings: GeneratorSettings; out: ReturnType<typeof generate>; metrics: ReturnType<typeof computeMetrics>; score: HookScore };
+  const raw: Raw[] = [];
+  const critic = (settings: GeneratorSettings, out: ReturnType<typeof generate>) =>
+    scoreHook({ events: out.events, tracks: out.tracks, slices: req.slices, sources: req.sources, bpm: req.bpm, timeSig: req.timeSig, bars: req.bars, settings, beat: req.beat });
+  // Over-generate: several attempts per bias, keep the one the hook critic rates best
+  // among those that are different enough from the ideas already chosen.
+  const attempts = req.attempts ?? 4;
   for (let i = 0; i < count; i++) {
     const profile = PROFILES[i];
-    let seed = (base.seed + i * 7919) >>> 0;
-    let best: (typeof raw)[number] | null = null;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    let best: Raw | null = null;
+    let bestDistinct: Raw | null = null;
+    for (let attempt = 0; attempt < attempts; attempt++) {
+      const seed = (base.seed + i * 7919 + attempt * 104729) >>> 0;
       const settings = tweakSettings(base, profile, seed);
       const out = generate({ ...req, settings });
       const metrics = computeMetrics(out.events, req.slices, req.sources, req.bpm, req.timeSig, req.bars);
-      const cand = { profile, settings, out, metrics };
+      const cand: Raw = { profile, settings, out, metrics, score: critic(settings, out) };
       const maxSim = Math.max(0, ...raw.map((r) => similarity(r.out.events, out.events)));
-      best = cand;
-      if (maxSim < 0.7) break;
-      seed = (seed + 104729) >>> 0; // too close to an existing idea: compose again
+      if (!best || cand.score.total > best.score.total) best = cand;
+      if (maxSim < 0.7 && (!bestDistinct || cand.score.total > bestDistinct.score.total)) bestDistinct = cand;
     }
-    raw.push(best!);
+    raw.push((bestDistinct ?? best)!);
   }
   // Assign labels from what was actually measured (greedy best match).
   const norm = PROFILES.slice(0, count).map((p) => {
@@ -138,6 +148,8 @@ export function generateCandidates(req: CandidateRequest): Candidate[] {
       description: [`${p.label}: ${p.explain(r.metrics)}`, ...r.out.description],
       favourite: false,
       createdAt: Date.now(),
+      groove: r.out.groove,
+      score: r.score,
     };
   });
 }
@@ -145,7 +157,7 @@ export function generateCandidates(req: CandidateRequest): Candidate[] {
 /** Variations of a favourite: keep its identity, develop it in different directions. */
 export function generateVariations(
   req: CandidateRequest,
-  base: { tracks: Track[]; events: SeqEvent[]; motifs: Motif[]; settings: GeneratorSettings },
+  base: { tracks: Track[]; events: SeqEvent[]; motifs: Motif[]; settings: GeneratorSettings; groove?: Groove },
   count = 4,
   nonce = 0,
 ): Candidate[] {
@@ -163,7 +175,7 @@ export function generateVariations(
     },
     {
       label: 'Same rhythm, new slices',
-      make: (seed) => ({ tracks: base.tracks, motifs: base.motifs, events: reassignSlices(req, base.events, base.events.map((e) => e.id), seed), description: ['Kept every onset, re-chose slices with the same musical role'] }),
+      make: (seed) => ({ tracks: base.tracks, motifs: base.motifs, events: reassignSlices(req, base.events, base.events.map((e) => e.id), seed), description: ['Kept every onset, re-chose slices with the same musical role'], groove: base.groove ?? { swing: 0, humanize: 0 } }),
     },
     {
       label: 'New ending',
@@ -194,6 +206,8 @@ export function generateVariations(
       description: [variants[i].label, ...r.description],
       favourite: false,
       createdAt: Date.now(),
+      groove: r.groove,
+      score: scoreHook({ events: r.events, tracks: r.tracks, slices: req.slices, sources: req.sources, bpm: req.bpm, timeSig: req.timeSig, bars: req.bars, settings: base.settings, beat: req.beat }),
     });
   }
   return out;

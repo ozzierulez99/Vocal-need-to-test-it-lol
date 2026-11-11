@@ -291,3 +291,31 @@ export function arrangementBarsFor(b: BeatContext) {
 export const DEFAULT_FIT: BeatFit = { harmonize: true, rhythm: 'complement', preview: true, previewGain: -12 };
 
 export { PPQ };
+
+
+/**
+ * Key tuning without a beat: every pitched note is moved to the nearest tone of
+ * the key (at most `maxMove` semitones), which also removes the cents by which
+ * a sung vowel is off. Playback-rate transposition, like every pitch change.
+ */
+export function tuneToScale(notes: HarmonizeNote[], pitchOf: (sliceId: string) => number | null, root: number, scale: ScaleName, maxMove = 1.6): number {
+  const set = new Set(scalePcs(root, scale));
+  let changed = 0;
+  for (const n of notes) {
+    const natural = pitchOf(n.sliceId);
+    if (natural === null) continue;
+    const p = natural + n.semitones;
+    let best: number | null = null;
+    for (const q of [Math.round(p), Math.round(p) + 1, Math.round(p) - 1, Math.round(p) + 2, Math.round(p) - 2]) {
+      if (!set.has(((q % 12) + 12) % 12)) continue;
+      if (best === null || Math.abs(q - p) < Math.abs(best - p)) best = q;
+    }
+    if (best === null || Math.abs(best - p) > maxMove) continue;
+    const semis = Math.round((best - natural) * 100) / 100;
+    if (Math.abs(semis - n.semitones) > 0.01) {
+      n.semitones = clamp(semis, -24, 24);
+      changed++;
+    }
+  }
+  return changed;
+}

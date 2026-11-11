@@ -1,6 +1,7 @@
 import type { Motif } from '../types';
 import type { Ctx, Note } from './context';
-import { motifToNotes, note, naturalTicks, semisFor, ROLE_GAIN } from './context';
+import { motifToNotes, note, naturalTicks, semisFor, semisForStep, ROLE_GAIN } from './context';
+import { PPQ } from '../types';
 import type { Section } from './form';
 import { develop, answerMotif, createMotif, type DevOp, type MotifKind } from './motif';
 import { chooseBarCells, mutateCell, parseCell, applyDensity, swingOffset } from './rhythm';
@@ -34,7 +35,11 @@ export function writeMotifLead(ctx: Ctx, form: Section[], motif: Motif, kind: Mo
   let bMotif: Motif | null = null;
   for (const sec of form) {
     const { start, end } = sectionWindow(ctx, sec);
-    const winEnd = ctx.leaveAnswerSpace ? start + Math.max(ctx.bar / 2, Math.floor(sec.bars / 2) * ctx.bar || ctx.bar / 2) : end;
+    const halfLen = Math.max(ctx.bar / 2, Math.floor(sec.bars / 2) * ctx.bar || ctx.bar / 2);
+    // verse beds answer the main vocal: the chops only speak in the second half of each phrase
+    const verse = (ctx.s.purpose ?? 'hook') === 'verse';
+    const winStart = verse ? start + halfLen : start;
+    const winEnd = ctx.leaveAnswerSpace && !verse ? start + halfLen : end;
     let m: Motif = motif;
     let gesture = 'motif';
     switch (sec.op) {
@@ -85,9 +90,9 @@ export function writeMotifLead(ctx: Ctx, form: Section[], motif: Motif, kind: Mo
         if (sec.index > 0) ctx.log.push(`${sec.label}: original motif returns`);
         break;
     }
-    const reps = Math.max(1, Math.ceil((winEnd - start) / Math.max(1, m.span)));
+    const reps = Math.max(1, Math.ceil((winEnd - winStart) / Math.max(1, m.span)));
     for (let r = 0; r < reps; r++) {
-      const at = start + r * m.span;
+      const at = winStart + r * m.span;
       if (at >= winEnd) break;
       let inst = m;
       if (sec.op === 'break' && r > 0) break; // leave the rest of the phrase empty
@@ -95,6 +100,8 @@ export function writeMotifLead(ctx: Ctx, form: Section[], motif: Motif, kind: Mo
       if (lastRep && reps > 1 && sec.op !== 'return' && sec.op !== 'state') inst = develop(ctx, rng, inst, 'vary-ending', prot);
       if (sec.op === 'state' && lastRep && reps > 1 && rng.chance(0.6)) inst = develop(ctx, rng, inst, 'vary-ending', prot);
       if (sec.op === 'build' && lastRep) inst = develop(ctx, rng, inst, 'densify', prot === 'preserve' ? 'develop' : prot);
+      // the very last statement comes home to the tonic so the part resolves (and loops)
+      if (sec.final && lastRep && sec.op !== 'build' && sec.op !== 'break') inst = develop(ctx, rng, inst, 'resolve', prot);
       const g = inst === motif ? 'motif' : gesture === 'motif' ? 'motif-var' : gesture;
       const ns = motifToNotes(inst, at, { gesture: g, motifId: inst.id === motif.id ? motif.id : undefined });
       out.push(...clipNotes(ns, at, winEnd));
@@ -173,7 +180,7 @@ export function writeRhythm(ctx: Ctx, form: Section[], lead: Note[]): Note[] {
           if (ctx.song && ctx.song.fit.rhythm === 'complement' && !h.accent && busyStep(ctx.song, h.step) >= 0.5) continue; // and for the beat
           if (ctx.song && ctx.song.fit.rhythm === 'follow' && !h.accent && busyStep(ctx.song, h.step) < 0.25) continue;
           const m = order[k++ % order.length];
-          const tick = absStep * ctx.step + swingOffset(h.step, ctx.prof.swing, ctx.step);
+          const tick = absStep * ctx.step; // swing is applied by the sequence groove at playback/export
           out.push(note({ tick, length: Math.min(naturalTicks(ctx, m), ctx.step * Math.max(1, h.len)), sliceId: m.slice.id, semitones: 0, gain: ROLE_GAIN.rhythm + (h.accent ? 0 : -3), velocity: h.accent ? 0.9 : 0.6, pan: k % 2 ? -0.2 : 0.2, fadeOut: 8, gesture: 'groove' }));
         }
       });
@@ -242,40 +249,106 @@ export function writeAccents(ctx: Ctx, form: Section[]): Note[] {
 export interface TransitionResult {
   notes: Note[];
   cuts: { start: number; end: number }[];
+  /** boundaries whose preceding lead note should tape-stop */
+  tapeStops: number[];
 }
 
-/** Transitions between sections: stutter rolls, reverse swells, breaths or drop-outs. */
+/**
+ * Fills at section changes, chosen from the style's vocabulary:
+ * roll, zipper (accelerating stutter), triplet burst, pitch-rise, tape-stop,
+ * reverse swell, breath, echo space, gated pad or a deliberate drop-out.
+ */
 export function writeTransitions(ctx: Ctx, form: Section[]): TransitionResult {
   const rng = ctx.rng('transition');
   const notes: Note[] = [];
   const cuts: { start: number; end: number }[] = [];
-  const hook = ctx.cast.hook[0];
-  for (const sec of form.slice(1)) {
-    const boundary = sec.startBar * ctx.bar;
-    const g = rng.weighted(['roll', 'swell', 'cut', 'breath'], [ctx.prof.stutter + 0.1, ctx.prof.reverse + ctx.prof.sustain * 0.3, ctx.prof.gaps * 0.8, ctx.prof.sustain * 0.4]);
+  const tapeStops: number[] = [];
+  const voice = ctx.cast.voice;
+  const tr = ctx.prof.traits;
+  const padLong = ctx.cast.pad.slice().sort((a, b) => b.dur - a.dur)[0];
+  const purpose = ctx.s.purpose ?? 'hook';
+  const stepSemis = (k: number) => (ctx.s.transpose ? semisForStep(ctx, voice, k) : 0);
+  const base = ROLE_GAIN.transition;
+  const boundaries = form.slice(1).map((sec) => ({ tick: sec.startBar * ctx.bar, label: sec.label, bar: sec.startBar + 1, energy: sec.energy }));
+  // a build ends with a fill into the (imagined) drop
+  if (purpose === 'build') boundaries.push({ tick: ctx.bars * ctx.bar, label: 'the drop', bar: ctx.bars + 1, energy: 1 });
+  for (const bd of boundaries) {
+    const boundary = bd.tick;
+    const weights = tr.fills.map((f, i) => {
+      let w = 1 / (i + 1);
+      if (f === 'cut') w *= 0.4 + ctx.prof.gaps;
+      if (f === 'swell') w *= 0.4 + ctx.prof.reverse * 2 + ctx.prof.sustain * 0.4;
+      if (f === 'gate' && (!padLong || naturalTicks(ctx, padLong) < ctx.beat * 2)) w = 0;
+      if (purpose === 'build' && (f === 'pitchrise' || f === 'zipper' || f === 'roll')) w *= 2.5;
+      return w;
+    });
+    const g = rng.weighted(tr.fills, weights);
+    const into = `→ ${bd.label}:`;
     if (g === 'roll') {
       const sub = rng.chance(0.5 + ctx.prof.stutter * 0.3) ? ctx.step / 2 : ctx.step;
-      const startT = boundary - ctx.beat;
-      for (let t = startT, k = 0; t < boundary; t += sub, k++) {
-        notes.push(note({ tick: t, length: Math.round(sub * 0.75), sliceId: hook.slice.id, semitones: ctx.s.transpose ? Math.min(12, k) : 0, gain: ROLE_GAIN.transition - 6 + k * (6 / (ctx.beat / sub)), velocity: 0.5 + k * 0.05, fadeIn: 1, fadeOut: 3, gesture: 'roll' }));
-      }
-      ctx.log.push(`→ ${sec.label}: stutter roll into bar ${sec.startBar + 1}`);
+      const n = ctx.beat / sub;
+      for (let t = boundary - ctx.beat, k = 0; t < boundary; t += sub, k++)
+        notes.push(note({ tick: t, length: Math.round(sub * 0.75), sliceId: voice.slice.id, semitones: stepSemis(0), gain: base - 6 + (k * 6) / n, velocity: 0.5 + (k * 0.4) / n, fadeIn: 1, fadeOut: 3, gesture: 'roll', align: false }));
+      ctx.log.push(`${into} stutter roll into bar ${bd.bar}`);
+    } else if (g === 'zipper') {
+      // sixteenths → thirty-seconds → sixty-fourths across the last beat
+      const start = boundary - ctx.beat;
+      const plan: [number, number][] = [[0, ctx.step], [ctx.step, ctx.step], [ctx.step * 2, ctx.step / 2], [ctx.step * 2.5, ctx.step / 2], ...[0, 1, 2, 3].map((i) => [ctx.step * 3 + (i * ctx.step) / 4, ctx.step / 4] as [number, number])];
+      plan.forEach(([dt, len], k) => notes.push(note({ tick: Math.round(start + dt), length: Math.max(20, Math.round(len * 0.8)), sliceId: voice.slice.id, semitones: stepSemis(0), gain: base - 7 + k * 0.9, velocity: 0.5 + k * 0.06, fadeIn: 1, fadeOut: 2, gesture: 'zipper', align: false })));
+      ctx.log.push(`${into} zipper fill (1/16 → 1/32 → 1/64) into bar ${bd.bar}`);
+    } else if (g === 'triplet') {
+      const sub = PPQ / 6;
+      for (let t = boundary - ctx.beat, k = 0; t < boundary - 1; t += sub, k++)
+        notes.push(note({ tick: Math.round(t), length: Math.round(sub * 0.8), sliceId: voice.slice.id, semitones: stepSemis(k % 3 === 2 ? 1 : 0), gain: base - 5 + k * 0.6, velocity: k % 3 === 0 ? 0.9 : 0.6, fadeIn: 1, fadeOut: 3, gesture: 'triplet', align: false }));
+      ctx.log.push(`${into} triplet burst into bar ${bd.bar}`);
+    } else if (g === 'pitchrise') {
+      // a rising run up the hook scale over the last two beats
+      const start = boundary - ctx.beat * 2;
+      for (let k = 0; k < 8; k++)
+        notes.push(note({ tick: start + k * ctx.step, length: Math.round(ctx.step * 0.8), sliceId: voice.slice.id, semitones: stepSemis(Math.floor(k / 2) + (k % 2 ? 1 : 0)), gain: base - 8 + k, velocity: 0.5 + k * 0.06, fadeIn: 1, fadeOut: 4, gesture: 'rise', align: false }));
+      ctx.log.push(`${into} rising run into bar ${bd.bar}`);
+    } else if (g === 'tapestop') {
+      tapeStops.push(boundary);
+      cuts.push({ start: boundary - ctx.step * 2, end: boundary });
+      ctx.log.push(`${into} tape-stop and a breath of silence before bar ${bd.bar}`);
     } else if (g === 'swell') {
-      const m = ctx.cast.pad[0];
+      const m = padLong ?? voice;
       const nat = Math.min(naturalTicks(ctx, m), ctx.bar);
-      notes.push(note({ tick: boundary - nat, length: nat, sliceId: m.slice.id, reverse: true, gain: ROLE_GAIN.transition, velocity: 0.6, fadeIn: 200, fadeOut: 5, gesture: 'swell' }));
-      ctx.log.push(`→ ${sec.label}: reverse swell lands on bar ${sec.startBar + 1}`);
-    } else if (g === 'cut') {
+      notes.push(note({ tick: boundary - nat, length: nat, sliceId: m.slice.id, reverse: true, gain: base, velocity: 0.6, fadeIn: 200, fadeOut: 5, gesture: 'swell' }));
+      ctx.log.push(`${into} reverse swell lands on bar ${bd.bar}`);
+    } else if (g === 'gate' && padLong) {
+      const m = padLong;
+      const rateFrames = (60 / (ctx.bpm * PPQ)) * m.source.sampleRate;
+      const start = boundary - ctx.beat * 2;
+      'x.xx.xxx'.split('').forEach((c, k) => {
+        if (c !== 'x') return;
+        notes.push(note({ tick: start + k * ctx.step, length: Math.round(ctx.step * 0.8), sliceId: m.slice.id, offset: Math.round((m.slice.end - m.slice.start) * 0.1 + k * ctx.step * rateFrames), gain: base - 2, velocity: 0.7, fadeIn: 2, fadeOut: 6, gesture: 'gate', align: false }));
+      });
+      ctx.log.push(`${into} gated vowel into bar ${bd.bar}`);
+    } else if (g === 'echo' || g === 'cut') {
       cuts.push({ start: boundary - ctx.beat, end: boundary });
-      ctx.log.push(`→ ${sec.label}: deliberate silence before bar ${sec.startBar + 1}`);
+      ctx.log.push(`${into} deliberate silence before bar ${bd.bar}`);
     } else {
       const m = ctx.cast.breath[0];
       const nat = Math.min(naturalTicks(ctx, m), ctx.beat * 2);
-      notes.push(note({ tick: boundary - nat, length: nat, sliceId: m.slice.id, gain: ROLE_GAIN.transition, velocity: 0.5, fadeIn: 40, fadeOut: 60, gesture: 'breath' }));
-      ctx.log.push(`→ ${sec.label}: breath before bar ${sec.startBar + 1}`);
+      notes.push(note({ tick: boundary - nat, length: nat, sliceId: m.slice.id, gain: base, velocity: 0.5, fadeIn: 40, fadeOut: 60, gesture: 'breath' }));
+      ctx.log.push(`${into} breath before bar ${bd.bar}`);
     }
   }
-  return { notes, cuts };
+  return { notes: notes.filter((n) => n.tick >= 0 && n.tick < ctx.bars * ctx.bar), cuts, tapeStops };
+}
+
+/** Tape-stop: the last note before each boundary falls an octave as it ends. */
+export function applyTapeStops(ctx: Ctx, ns: Note[], boundaries: number[]): Note[] {
+  if (!boundaries.length || !ctx.s.transpose) return ns;
+  const out = ns.map((n) => ({ ...n }));
+  for (const b of boundaries) {
+    const before = out.filter((n) => n.tick < b - ctx.step * 2 && n.tick >= b - ctx.bar).sort((x, y) => y.tick - x.tick)[0];
+    if (!before) continue;
+    before.length = Math.max(before.length, Math.min(b - ctx.step * 2 - before.tick, ctx.beat * 2));
+    before.glideOut = [-12, 260];
+  }
+  return out;
 }
 
 export function applyCuts(ns: Note[], cuts: { start: number; end: number }[]): Note[] {

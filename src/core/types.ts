@@ -204,6 +204,10 @@ export interface MotifNote {
   offset: number;
   reverse: boolean;
   accent: number;
+  /** Hook-scale step this note was written on (lets development move it musically). */
+  step?: number;
+  /** Chord-arpeggio index: the note follows the chord underneath (0 = root, 1 = next chord tone, …). */
+  arp?: number;
 }
 
 export interface Motif {
@@ -241,7 +245,17 @@ export type Direction =
   | 'ambient'
   | 'glitch'
   | 'experimental'
-  | 'dance';
+  | 'dance'
+  | 'drain'
+  | 'hyperpop'
+  | 'trance'
+  | 'ukg'
+  | 'witch';
+
+/** What the part is for in a song – changes form, density and placement. */
+export type Purpose = 'hook' | 'verse' | 'build' | 'drop' | 'intro' | 'outro';
+
+export type TimeFeel = 'auto' | 'normal' | 'half';
 
 export type RhythmFeel =
   | 'bouncy'
@@ -296,6 +310,10 @@ export interface GeneratorSettings {
   sliceIds: string[];
   /** UI label of how the material was chosen (e.g. "favourites", "source:<id>"). */
   materialKey?: string;
+  /** Song-section purpose (default: hook). */
+  purpose?: Purpose;
+  /** Half-time phrasing (auto = decided from style, tempo and the beat). */
+  timeFeel?: TimeFeel;
   /** Conversation settings */
   voiceA?: string[];
   voiceB?: string[];
@@ -376,6 +394,8 @@ export interface BeatRhythm {
   densityPerBar: number[];
   /** typical bars between chord changes */
   harmonicRhythm: number;
+  /** half-time when the drums put the backbeat on beat 3 (only known when drums were supplied) */
+  feel?: 'half' | 'normal';
 }
 
 /** Fit options the user controls. */

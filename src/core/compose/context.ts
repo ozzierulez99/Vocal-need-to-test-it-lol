@@ -22,6 +22,13 @@ export interface Note {
   fadeOut: number;
   gesture?: string;
   motifId?: string;
+  /** chord-arp index: resolved to a chord tone when the note is placed */
+  arp?: number;
+  /** hook-scale step the note was written on */
+  step?: number;
+  glideIn?: [number, number];
+  glideOut?: [number, number];
+  align?: boolean;
 }
 
 export interface Ctx {
@@ -48,6 +55,12 @@ export interface Ctx {
   leaveAnswerSpace: boolean;
   /** Optional beat context of the user's song (“fit to my beat”). */
   song?: BeatContext;
+  /** Semitone steps of the scale the hook is written on (often the pentatonic subset). */
+  hookSteps: number[];
+  /** How far above/below the voice's natural pitch the lead sits (semitones). */
+  lift: number;
+  /** Half-time phrasing: hook rhythms are stretched to twice the length. */
+  half: boolean;
 }
 
 export function makeCtx(
@@ -82,7 +95,64 @@ export function makeCtx(
     log: [],
     leaveAnswerSpace: false,
     song: beat,
+    hookSteps: hookStepsFor(s.scale, stream(s.seed, 'hookscale').chance(prof.traits.pentatonic)),
+    lift: stream(s.seed, 'lift').pick(prof.traits.lifts) + (s.register === 'low' ? -5 : s.register === 'high' ? 5 : 0),
+    half: s.timeFeel === 'half' || ((s.timeFeel ?? 'auto') === 'auto' && (beat?.rhythm.feel === 'half' || (beat?.rhythm.feel === undefined && prof.traits.half >= 0.6 && bpm >= 118))),
   };
+}
+
+const MINOR_PENTA = [0, 3, 5, 7, 10];
+const MAJOR_PENTA = [0, 2, 4, 7, 9];
+
+/** The scale a hook is written on: the key's pentatonic subset, or the full scale. */
+export function hookStepsFor(scale: GeneratorSettings['scale'], pentatonic: boolean): number[] {
+  if (scale === 'major-pentatonic') return MAJOR_PENTA;
+  if (scale === 'minor-pentatonic') return MINOR_PENTA;
+  if (!pentatonic) return SCALES[scale] ?? SCALES.minor;
+  return scale === 'major' ? MAJOR_PENTA : MINOR_PENTA;
+}
+
+/** Semitones above the tonic for a (possibly negative) step index of the hook scale. */
+export function hookSemis(steps: number[], idx: number): number {
+  const n = steps.length;
+  const oct = Math.floor(idx / n);
+  return steps[((idx % n) + n) % n] + 12 * oct;
+}
+
+/**
+ * MIDI pitch of the tonic this voice plays around: the octave of the key root
+ * that keeps the melody close to the voice's natural pitch plus the style lift.
+ */
+export function voiceTonic(ctx: Ctx, mat: Material | undefined): number {
+  const natural = mat?.pitch ?? 60;
+  const pc = ctx.s.keyRoot ?? ((Math.round(natural) % 12) + 12) % 12;
+  const centre = natural + ctx.lift;
+  const mid = hookSemis(ctx.hookSteps, Math.floor(ctx.hookSteps.length / 2));
+  let best = pc;
+  for (let t = pc - 24; t < 128; t += 12) if (Math.abs(t + mid - centre) < Math.abs(best + mid - centre)) best = t;
+  return best;
+}
+
+/** Transposition (playback rate) that puts this voice exactly on a hook-scale step. */
+export function semisForStep(ctx: Ctx, mat: Material | undefined, idx: number): number {
+  if (!ctx.s.transpose) return 0;
+  if (!mat || mat.pitch === null) return clamp(hookSemis(ctx.hookSteps, idx) + ctx.lift, -14, 14);
+  let semis = voiceTonic(ctx, mat) + hookSemis(ctx.hookSteps, idx) - mat.pitch;
+  // keep transposition reasonable, but let pitched-up / pitched-down styles reach their register
+  const hi = Math.max(14, ctx.lift + 8);
+  const lo = Math.min(-14, ctx.lift - 8);
+  while (semis > hi) semis -= 12;
+  while (semis < lo) semis += 12;
+  return Math.round(semis * 100) / 100;
+}
+
+/** Stable resting steps of the hook scale (tonic-triad tones). */
+export function stableSteps(steps: number[]): number[] {
+  const out: number[] = [];
+  steps.forEach((st, i) => {
+    if (st === 0 || st === 3 || st === 4 || st === 7) out.push(i);
+  });
+  return out.length ? out : [0];
 }
 
 export const ROLE_GAIN: Record<Role, number> = {
@@ -151,6 +221,8 @@ export function motifToNotes(m: Motif, at: number, extra: Partial<Note> = {}): N
       gain: n.accent > 0.5 ? 0 : -2,
       motifId: m.id,
       gesture: 'motif',
+      arp: n.arp,
+      step: n.step,
       ...extra,
     }),
   );

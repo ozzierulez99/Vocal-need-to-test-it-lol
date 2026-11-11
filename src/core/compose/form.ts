@@ -68,6 +68,29 @@ export function planForm(ctx: Ctx, mode: ComposeMode): Section[] {
   if (n >= 3 && ops[n - 1] !== 'return' && c.repetition > 0.4) ops[n - 1] = 'return';
   if (prof.build < 0.2 && n >= 3) ops[n - 1] = ops[n - 1] === 'return' ? 'return' : 'simplify';
 
+  // Song-section purpose reshapes the form (phrase reconstruction keeps its own journey).
+  const purpose = ctx.s.purpose ?? 'hook';
+  let energyOf: ((i: number) => number) | null = null;
+  if (mode !== 'phrase' && mode !== 'midi' && purpose !== 'hook') {
+    const last = Math.max(1, n - 1);
+    if (purpose === 'build') {
+      ops = ops.map((_, i) => (i === 0 ? 'simplify' : i === n - 1 ? 'build' : i % 2 ? 'state' : 'vary'));
+      energyOf = (i) => 0.3 + (0.7 * i) / last;
+    } else if (purpose === 'drop') {
+      ops = ops.map((_, i) => (i === 0 ? 'state' : i === n - 1 ? 'return' : i % 2 ? 'vary' : n > 3 && i === 2 ? 'contrast' : 'state'));
+      energyOf = () => 0.9;
+    } else if (purpose === 'intro') {
+      ops = ops.map((_, i) => (i < n / 2 ? 'simplify' : i === n - 1 ? 'vary' : 'state'));
+      energyOf = (i) => 0.25 + (0.4 * i) / last;
+    } else if (purpose === 'outro') {
+      ops = ops.map((_, i) => (i === 0 ? 'state' : i === n - 1 ? 'break' : 'simplify'));
+      energyOf = (i) => 0.6 - (0.4 * i) / last;
+    } else if (purpose === 'verse') {
+      ops = ops.map((_, i) => (i === n - 1 && n > 2 ? 'return' : i % 2 ? 'vary' : 'state'));
+      energyOf = () => 0.4;
+    }
+  }
+
   const labels: string[] = [];
   const seen = new Map<string, number>();
   const base: Record<SectionOp, string> = {
@@ -80,7 +103,7 @@ export function planForm(ctx: Ctx, mode: ComposeMode): Section[] {
     labels.push(b + "'".repeat(k));
   }
   return ops.map((op, i) => {
-    const energy =
+    const energy = energyOf ? energyOf(i) :
       op === 'break' ? 0.25 : op === 'build' ? 0.9 : op === 'simplify' ? 0.4 : op === 'contrast' ? 0.7 : op === 'fragment' ? 0.75 : 0.55 + (i / Math.max(1, n - 1)) * prof.build * 0.4;
     return {
       index: i,
