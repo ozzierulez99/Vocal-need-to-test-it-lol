@@ -6,7 +6,8 @@ import { ComposeView } from './app/views/ComposeView';
 import { LibraryView } from './app/views/LibraryView';
 import { ExportView } from './app/views/ExportView';
 import { BeatView } from './app/views/BeatView';
-import { loadBeatBytes } from './app/services/beatService';
+import { loadBeatBytes, loadBackingBytes } from './app/services/beatService';
+import { handleKeyDown, handleKeyUp } from './app/keys';
 import { importAudioFiles } from './app/services/projectService';
 import { Recorder } from './app/components/Recorder';
 import { ProjectPicker } from './app/components/ProjectPicker';
@@ -35,6 +36,11 @@ export function App() {
         return;
       }
       if (isTyping(e)) return;
+      if (handleKeyDown(e)) {
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
       if (mod && e.key.toLowerCase() === 'z' && !e.shiftKey) {
         e.preventDefault();
         useStore.getState().undo();
@@ -46,7 +52,9 @@ export function App() {
         togglePlay();
       } else if (e.key === 'Escape') stop();
     };
-    window.addEventListener('keydown', onKey);
+    const onKeyUp = (e: KeyboardEvent) => void handleKeyUp(e);
+    window.addEventListener('keydown', onKey, true);
+    window.addEventListener('keyup', onKeyUp);
     const before = (e: BeforeUnloadEvent) => {
       if (useStore.getState().dirty && platform.kind === 'browser') e.preventDefault();
     };
@@ -68,12 +76,23 @@ export function App() {
       depth = 0;
       setDragging(false);
       const files = Array.from(e.dataTransfer?.files ?? []);
+      const zone = (e.target as HTMLElement | null)?.closest?.('[data-drop]')?.getAttribute('data-drop');
       const midis = files.filter((f) => /\.midi?$/i.test(f.name));
       const audio = files.filter((f) => !/\.midi?$/i.test(f.name) && !/\.vcsz$/i.test(f.name));
+      if (zone === 'backing' && audio.length) {
+        await loadBackingBytes(new Uint8Array(await audio[0].arrayBuffer()), audio[0].name);
+        return;
+      }
       if (audio.length) await importAudioFiles(await Promise.all(audio.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));
       if (midis.length) {
-        const f = midis[0];
-        if (loadBeatBytes(new Uint8Array(await f.arrayBuffer()), f.name)) useStore.getState().setUI({ view: 'beat' });
+        // several files, or a drop on "add part", build one beat from many parts (chords + bass + drums…)
+        let ok = false;
+        for (let i = 0; i < midis.length; i++) {
+          const f = midis[i];
+          const add = (zone === 'add-part' || i > 0) && !!useStore.getState().doc.beat;
+          ok = !!loadBeatBytes(new Uint8Array(await f.arrayBuffer()), f.name, add ? 'add' : 'replace') || ok;
+        }
+        if (ok) useStore.getState().setUI({ view: 'beat' });
       } else if (audio.length) useStore.getState().setUI({ view: 'slice' });
     };
     window.addEventListener('dragenter', onEnter);
@@ -85,7 +104,8 @@ export function App() {
       window.removeEventListener('dragleave', onLeave);
       window.removeEventListener('dragover', onOver);
       window.removeEventListener('drop', onDrop);
-      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('keydown', onKey, true);
+      window.removeEventListener('keyup', onKeyUp);
       window.removeEventListener('beforeunload', before);
     };
   }, []);
@@ -102,7 +122,7 @@ export function App() {
       <ProjectPicker />
       {dragging && (
         <div className="drop-overlay" data-testid="drop-overlay">
-          <div>Drop a beat MIDI (chords / arp) or vocal audio</div>
+          <div>Drop your beat’s MIDI (chords, bass, drums, lead – one or several files) or vocal audio</div>
         </div>
       )}
       <div className="toasts" data-testid="toasts">

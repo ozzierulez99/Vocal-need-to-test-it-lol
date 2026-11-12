@@ -8,7 +8,7 @@ import { makeSlice, splitSlice, mergeSlices, subdivide, suggestBoundaries, slice
 import { midiToName, nameToMidi } from '../../core/time';
 import { auditionRegion, auditionSlice } from '../transport';
 import { engine } from '../audio/engine';
-import { pickAndImportAudio, addDemoVoice, relinkSource } from '../services/projectService';
+import { pickAndImportAudio, addDemoVoice, relinkSource, sustainSlice, findVowelsIn } from '../services/projectService';
 import { DEMO_VOICES } from '../../core/demo/synthVoice';
 import { uid } from '../../core/ids';
 
@@ -128,6 +128,10 @@ function SliceInspector({ slices }: { slices: Slice[] }) {
         <Btn small onClick={() => auditionSlice(s.id, { reverse: true })}>◀ Reverse</Btn>
         <Btn small onClick={() => auditionSlice(s.id, { semitones: 12 })}>+12</Btn>
         <Btn small onClick={() => auditionSlice(s.id, { semitones: -12 })}>−12</Btn>
+      </div>
+      <div className="row tight">
+        <Btn small testid="sustain-slice" onClick={() => { const id = sustainSlice(s.id, 4); if (id) useStore.getState().toast('Sustained copy created (4 s loop with crossfade) – great for pads, drones and gated leads', 'success'); }} title="Loops the steadiest part of this sound into a long, held note (a new derived source – the original is untouched)">∞ Sustain 4 s</Btn>
+        <Btn small onClick={() => { sustainSlice(s.id, 8); useStore.getState().toast('8 s sustained copy created', 'success'); }}>8 s</Btn>
       </div>
       <p className="dim" style={{ margin: 0, fontSize: 11 }}>Pitch is a rough estimate; ±12 audition uses playback-rate transposition (pitch and length change together).</p>
     </Section>
@@ -305,6 +309,7 @@ export function SliceView() {
           <Btn small testid="duplicate-slice" disabled={!selected.length} onClick={duplicate}>Duplicate</Btn>
           <Btn small kind="danger" testid="delete-slice" disabled={!selected.length} onClick={() => actions.removeSlices(ui.sliceIds)}>Delete</Btn>
           <span className="sep" />
+ <Btn small testid="find-vowels" onClick={() => { const n = findVowelsIn(src.id); useStore.getState().toast(n ? `${n} vowel sounds found – steady, pitched pieces that play like notes` : 'No further steady vowels found in this source', n ? 'success' : 'info'); }} title="Find the steady, pitched middle of each sung sound – the best material for melodic chops">Find vowels</Btn>
           <Btn small testid="auto-chop" onClick={autoChopSrc} title="Suggest phrase, word and syllable slices">Auto-chop</Btn>
         </div>
         <div className="wave-wrap" style={{ overflow: 'auto' }}>

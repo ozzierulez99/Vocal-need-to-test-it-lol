@@ -3,6 +3,7 @@ import { useStore, actions } from '../store/store';
 import { Btn, Section, Select, NumberField } from '../components/ui';
 import { exportMixFile, exportStems, exportSlices, exportMidiPackage, type ExportFile } from '../../core/project/exporters';
 import { platform } from '../platform/platform';
+import { mixFile, prepareDrag, startDrag, canDragOut } from '../services/exportService';
 import { safeName } from '../../core/midi/midi';
 import { ticksPerBar } from '../../core/time';
 
@@ -11,6 +12,7 @@ export function ExportView() {
   const rt = useStore((s) => s.rt);
   const ui = useStore((s) => s.ui);
   const es = doc.exportSettings;
+  const fx = doc.fx;
   const [log, setLog] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [trackId, setTrackId] = useState('');
@@ -19,13 +21,13 @@ export function ExportView() {
   const usedTracks = seq.tracks.filter((t) => seq.events.some((e) => e.trackId === t.id));
   const name = safeName(doc.name || 'vocal-chop');
 
-  const run = async (label: string, make: () => ExportFile[] | (ExportFile & { result?: any })[], folder: string) => {
+  const run = async (label: string, make: () => ExportFile[] | (ExportFile & { result?: any })[] | Promise<ExportFile[]>, folder: string) => {
     if (!seq.events.length && !label.includes('slice')) return useStore.getState().toast('Nothing to export – the arrangement is empty', 'error');
     setBusy(true);
     await new Promise((r) => setTimeout(r, 20));
     try {
       const t0 = performance.now();
-      const files = make();
+      const files = await make();
       const where = await platform.writeExport(files, folder);
       if (!where) return;
       const lines = files.map((f: any) => `  ${f.name}  (${(f.bytes.length / 1024).toFixed(0)} KB)${f.result ? `  peak ${(20 * Math.log10(Math.max(1e-9, f.result.peak))).toFixed(1)} dBFS${f.result.appliedGain !== 1 ? `, level ×${f.result.appliedGain.toFixed(2)}` : ''}` : ''}`);
@@ -70,19 +72,21 @@ export function ExportView() {
           <div className="export-card">
             <h4>Full arrangement</h4>
             <p>Stereo mix of all audible layers (mute/solo respected).</p>
-            <Btn kind="primary" testid="export-mix" disabled={busy} onClick={() => run('Mix', () => [exportMixFile(doc, rt.audio, es)], `${name}_mix`)}>Export mix WAV</Btn>
+            <Btn kind="primary" testid="export-mix" disabled={busy} onClick={() => run('Mix', async () => [await mixFile()], `${name}_mix`)}>Export mix WAV</Btn>
+            {canDragOut() && <span className="btn drag-out" data-testid="drag-mix" draggable title="Drag the arrangement straight into your DAW" onMouseEnter={() => void prepareDrag(null)} onDragStart={(e) => { e.preventDefault(); startDrag(null); }}>⇱ Drag into your DAW</span>}
+            {fx?.print && (fx.reverb > 0 || fx.delay > 0) && <p className="watch" style={{ margin: 0 }}>Audition reverb/delay will be printed into this mix (toggle “Print” in Compose).</p>}
           </div>
           <div className="export-card">
             <h4>Selected bars / loop</h4>
             <p>Render only the bars selected in the ruler – optionally loop-ready (tail folded to the start so it loops seamlessly).</p>
             <div className="row tight">
-              <Btn disabled={!bars || busy} testid="export-bars" onClick={() => bars && run('Bars', () => [exportMixFile(doc, rt.audio, es, { startBar: bars[0], endBar: bars[1] })], `${name}_bars`)}>Export bars</Btn>
+              <Btn disabled={!bars || busy} testid="export-bars" onClick={() => bars && run('Bars', async () => [await mixFile({ startBar: bars[0], endBar: bars[1] })], `${name}_bars`)}>Export bars</Btn>
               <Btn disabled={busy} testid="export-loop" onClick={() => run('Loop', () => [exportMixFile(doc, rt.audio, es, { startBar: bars?.[0], endBar: bars?.[1], loopReady: true })], `${name}_loop`)}>Loop-ready WAV</Btn>
             </div>
           </div>
           <div className="export-card">
             <h4>Stems (one WAV per layer)</h4>
-            <p>Equal-length files that line up from bar 1 – ideal for separate reverb/delay processing in your DAW. Stems sum to the mix.</p>
+            <p>Equal-length files that line up from bar 1 – ideal for separate reverb/delay processing in your DAW. Stems sum to the dry mix (effects are never printed into stems).</p>
             <Btn disabled={busy} testid="export-stems" onClick={() => run('Stems', () => exportStems(doc, rt.audio, es), `${name}_stems`)}>Export {usedTracks.length} stems</Btn>
           </div>
           <div className="export-card">

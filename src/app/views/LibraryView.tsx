@@ -5,7 +5,7 @@ import { SLICE_CATEGORIES, SLICE_LEVELS } from '../../core/types';
 import { Btn, Section, Select, TextField, Toggle, Empty } from '../components/ui';
 import { WaveThumb } from '../components/WaveThumb';
 import { auditionSlice } from '../transport';
-import { midiToName } from '../../core/time';
+import { midiToName, ticksPerBar } from '../../core/time';
 import { uid } from '../../core/ids';
 import { exportSlices } from '../../core/project/exporters';
 import { platform } from '../platform/platform';
@@ -153,7 +153,7 @@ function insertPhrase(collectionId: string) {
   const trackId = st.ui.trackId ?? st.doc.sequence.tracks[0]?.id;
   if (!trackId) return st.toast('Add a layer first', 'error');
   const at = Math.round(st.positionTick / st.doc.sequence.grid) * st.doc.sequence.grid;
-  const total = st.doc.sequence.bars * 3840;
+  const total = st.doc.sequence.bars * ticksPerBar(st.doc.sequence.timeSig);
   actions.addEvents(c.phrase.events.map((e) => ({ ...e, id: uid('ev'), trackId, tick: e.tick + at })).filter((e) => e.tick < total));
   st.setUI({ view: 'compose' });
 }

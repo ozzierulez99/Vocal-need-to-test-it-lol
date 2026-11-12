@@ -1,4 +1,5 @@
-import type { Candidate, GeneratorSettings } from '../../core/types';
+import type { Candidate, Direction, GeneratorSettings } from '../../core/types';
+import { DIRECTIONS } from '../../core/compose/directions';
 import { generate } from '../../core/compose/engine';
 import { generateCandidates, generateVariations, reassignSlices } from '../../core/compose/candidates';
 import { ticksPerBar } from '../../core/time';
@@ -146,4 +147,24 @@ export function instantIdeas(recipes: { label: string; settings: Partial<Generat
     st().setUI({ view: 'compose', candidateA: picked[0]?.id ?? null, candidateB: picked[1]?.id ?? null });
     st().toast(`${picked.length} ideas ready – best first. Press ▶ on a card, or drag it straight into your DAW.`, 'success');
   });
+}
+
+const INSTANT_STYLES: { label: string; mode: GeneratorSettings['mode']; direction: Direction }[] = [
+  { label: 'Float', mode: 'melodic', direction: 'drain' },
+  { label: 'Pop hook', mode: 'melodic', direction: 'playful' },
+  { label: 'Glitch-pop', mode: 'melodic', direction: 'hyperpop' },
+  { label: 'Garage', mode: 'rhythmic', direction: 'ukg' },
+  { label: 'Lead', mode: 'melodic', direction: 'trance' },
+  { label: 'Texture', mode: 'ghost', direction: 'ambient' },
+];
+
+/** One click: several styles (or, with a beat loaded, several ways of fitting it) → the best six ideas. */
+export function runInstant() {
+  const cur = effectiveSettings();
+  const mine = { label: 'Your settings', settings: {} as Partial<GeneratorSettings> };
+  const styles = INSTANT_STYLES.filter((x) => !(x.mode === cur.mode && x.direction === cur.direction)).map((x) => ({
+    label: x.label,
+    settings: { mode: x.mode, direction: x.direction, feel: DIRECTIONS[x.direction].defaultFeel, controls: { ...DIRECTIONS[x.direction].controls }, transpose: true, layers: [] } as Partial<GeneratorSettings>,
+  }));
+  instantIdeas(cur.mode === 'midi' || cur.mode === 'conversation' ? styles : [mine, ...styles]);
 }

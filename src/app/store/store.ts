@@ -41,6 +41,9 @@ export interface UIState {
   auditioning: string | null;
   showRecorder: boolean;
   pxPerBeat: number;
+  /** computer-keyboard sampler on / recording what is played into the timeline */
+  keys?: boolean;
+  keysRecord?: boolean;
 }
 
 interface Runtime {

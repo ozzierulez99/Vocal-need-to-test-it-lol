@@ -18,12 +18,12 @@ test.describe('core workflows', () => {
     await page.mouse.up();
     await page.getByTestId('new-level').selectOption('sound');
     await page.getByTestId('create-slice').click();
-    expect(await state<number>(page, '(s) => s.doc.slices.filter(x => x.level === "sound").length')).toBe(1);
+    expect(await state<number>(page, '(s) => s.doc.slices.filter(x => x.level === "sound" && !x.tags.includes("vowel")).length')).toBe(1);
     // rename + favourite the new slice
     await page.getByTestId('slice-name').fill('ah-chop');
     await page.getByTestId('slice-name').press('Enter');
     await page.getByTestId('slice-fav').click();
-    expect(await state<string>(page, '(s) => s.doc.slices.find(x => x.level === "sound").name')).toBe('ah-chop');
+    expect(await state<string>(page, '(s) => s.doc.slices.find(x => x.level === "sound" && !x.tags.includes("vowel")).name')).toBe('ah-chop');
 
     // compose
     await page.getByTestId('go-compose').click();
@@ -285,7 +285,13 @@ test('live scheduler timing matches the event model (incl. loop cycles)', async 
   // loop the first bar so several cycles get scheduled quickly
   await page.evaluate(() => {
     const s = (window as any).__vcs.useStore.getState();
-    s.commit('loop', (d: any) => void (d.sequence.loop = { enabled: true, startTick: 0, endTick: 3840 }));
+    // grid-exact placement for this check: no onset pre-roll, no swing / humanise (those are covered by unit tests)
+    s.commit('loop', (d: any) => {
+      d.sequence.loop = { enabled: true, startTick: 0, endTick: 3840 };
+      d.sequence.groove = undefined;
+      d.sequence.tracks.forEach((t: any) => (t.choke = false));
+      d.sequence.events.forEach((e: any) => (e.align = false));
+    });
     (window as any).__vcsEngine.debugSchedule = [];
   });
   await page.getByTestId('play').click();
@@ -322,7 +328,11 @@ test('playback from an arbitrary position joins sounding events part-way', async
   const target = await page.evaluate(() => {
     const s = (window as any).__vcs.useStore.getState();
     const e = s.doc.sequence.events.find((x: any) => x.length > 1500 && !x.reverse);
-    s.commit('no loop', (d: any) => void (d.sequence.loop.enabled = false));
+    s.commit('no loop', (d: any) => {
+      d.sequence.loop.enabled = false;
+      d.sequence.groove = undefined;
+      d.sequence.events.forEach((x: any) => (x.align = false));
+    });
     (window as any).__vcs.useStore.setState({ positionTick: e.tick + 480 });
     (window as any).__vcsEngine.debugSchedule = [];
     return { id: e.id, tick: e.tick };

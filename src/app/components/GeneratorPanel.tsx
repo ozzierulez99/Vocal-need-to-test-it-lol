@@ -1,13 +1,13 @@
 import React from 'react';
 import { useStore, actions } from '../store/store';
-import type { ComposeMode, Direction, RhythmFeel, Role, ScaleName, MidiMapping, ConversationRelation, CreativeControls } from '../../core/types';
+import type { Purpose, TimeFeel, ComposeMode, Direction, RhythmFeel, Role, ScaleName, MidiMapping, ConversationRelation, CreativeControls } from '../../core/types';
 import { ROLES } from '../../core/types';
 import { DIRECTIONS, FEEL_LABELS } from '../../core/compose/directions';
 import { MODE_LABELS, defaultLayers } from '../../core/compose/engine';
 import { SCALES } from '../../core/compose/theory';
 import { NOTE_NAMES, midiToName } from '../../core/time';
 import { Btn, NumberField, Section, Select, Slider, Toggle } from './ui';
-import { generateIdeas, composeDirect, regenerateBars, regenerateLayer } from '../services/composeService';
+import { generateIdeas, composeDirect, regenerateBars, regenerateLayer, runInstant } from '../services/composeService';
 import { importMidi, importMidiBytes } from '../services/projectService';
 import { demoMidiFile } from '../../core/demo/examples';
 import { guidePitches } from '../../core/midi/midi';
@@ -33,6 +33,20 @@ const CONTROL_INFO: Record<keyof CreativeControls, [string, string]> = {
   melodicMovement: ['Melodic movement', 'How actively pitch / register changes'],
   surprise: ['Surprise', 'How unconventional the decisions become'],
 };
+
+const PURPOSES: { value: Purpose; label: string }[] = [
+  { value: 'hook', label: 'Hook / chorus – states the idea, develops, returns' },
+  { value: 'verse', label: 'Verse bed – sparse, answers between your lines' },
+  { value: 'build', label: 'Build-up – thin to dense, fill into the drop' },
+  { value: 'drop', label: 'Drop lead – full energy, doubles' },
+  { value: 'intro', label: 'Intro – the hook assembles gradually' },
+  { value: 'outro', label: 'Outro – the hook dissolves' },
+];
+const TIME_FEELS: { value: TimeFeel; label: string }[] = [
+  { value: 'auto', label: 'Auto (style, tempo, your drums)' },
+  { value: 'normal', label: 'Normal time' },
+  { value: 'half', label: 'Half-time (long phrases)' },
+];
 
 const RELATIONS: { value: ConversationRelation; label: string }[] = [
   { value: 'call-response', label: 'Call and response' },
@@ -113,7 +127,11 @@ export function GeneratorPanel() {
       <Section title="Musical direction">
         <Select testid="direction" value={s.direction} options={(Object.keys(DIRECTIONS) as Direction[]).map((d) => ({ value: d, label: DIRECTIONS[d].label }))} onChange={(d) => set({ direction: d, feel: DIRECTIONS[d].defaultFeel, controls: { ...DIRECTIONS[d].controls } })} />
         <div className="blurb">{DIRECTIONS[s.direction].blurb}</div>
-        <Select label="Rhythmic feel" testid="feel" value={s.feel} options={(Object.keys(FEEL_LABELS) as RhythmFeel[]).map((f) => ({ value: f, label: FEEL_LABELS[f] }))} onChange={(f) => set({ feel: f })} />
+        <Select label="Part of the song" testid="purpose" value={s.purpose ?? 'hook'} options={PURPOSES} onChange={(v) => set({ purpose: v })} />
+        <div className="row">
+          <Select label="Rhythmic feel" testid="feel" value={s.feel} options={(Object.keys(FEEL_LABELS) as RhythmFeel[]).map((f) => ({ value: f, label: FEEL_LABELS[f] }))} onChange={(f) => set({ feel: f })} />
+          <Select label="Time" testid="time-feel" value={s.timeFeel ?? 'auto'} options={TIME_FEELS} onChange={(v) => set({ timeFeel: v })} />
+        </div>
       </Section>
       <Section title="Creative controls" right={<Btn small kind="ghost" onClick={() => set({ controls: { ...DIRECTIONS[s.direction].controls } })}>Reset</Btn>}>
         {(Object.keys(CONTROL_INFO) as (keyof CreativeControls)[]).map((k) => (
@@ -191,6 +209,7 @@ export function GeneratorPanel() {
       </Section>
       <div className="gen-actions">
         <Btn kind="primary" testid="generate-ideas" onClick={() => generateIdeas(6)}>✦ Generate 6 ideas</Btn>
+        <Btn testid="instant-ideas" onClick={() => runInstant()} title="Tries several styles with your material and keeps the six strongest, most different ideas">⚡ Instant: best across styles</Btn>
         <div className="row tight">
           <Btn testid="compose-direct" onClick={() => composeDirect()}>Compose into arrangement</Btn>
         </div>
