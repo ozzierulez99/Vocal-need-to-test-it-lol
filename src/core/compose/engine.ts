@@ -329,7 +329,7 @@ function assemble(ctx: Ctx, input: GenerateInput, layers: Layer[], motifs: Motif
     if (t && !(ex?.events ?? []).some((e) => e.trackId === t!.id)) t = { ...t, name: l.name, role: l.role, color: ROLE_COLORS[l.role] };
     // sampler-style layers choke: a new chop cuts the one before it
     const choke = l.key !== 'ornament' && (l.role === 'lead' || l.role === 'response' || l.role === 'rhythm' || l.role === 'transition');
-    trackFor.set(l.key, t ? { ...t } : { id, name: l.name, role: l.role, mute: false, solo: false, gain: 0, pan: 0, locked: false, color: ROLE_COLORS[l.role], choke });
+    trackFor.set(l.key, t ? { ...t, choke: t.choke ?? choke } : { id, name: l.name, role: l.role, mute: false, solo: false, gain: 0, pan: 0, locked: false, color: ROLE_COLORS[l.role], choke });
   }
   const trackById = new Map(exTracks.map((t) => [t.id, t]));
   const inScopeTrack = (trackId: string) => !scope?.trackIds || scope.trackIds.includes(trackId);

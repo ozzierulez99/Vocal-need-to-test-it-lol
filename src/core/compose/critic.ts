@@ -222,7 +222,7 @@ export function scoreHook(input: CriticInput): HookScore {
     }
     melody = 100 * (hygieneM * 0.55 + craftM * 0.45);
     if (inKey > 0.97 && scale) good.push('every note is in key');
-    if (inKey < 0.85) watch.push('some notes are out of key');
+    if (inKey < 0.85) watch.unshift('some notes are out of key');
     if (resolves >= 1) good.push('resolves to the tonic');
     else if (resolves < 0.5) watch.push('ends on an unresolved note');
     if (melodicMode && motionScore > 0.9 && leapScore === 1 && distinct >= 3) good.push('singable line: small steps, few leaps');

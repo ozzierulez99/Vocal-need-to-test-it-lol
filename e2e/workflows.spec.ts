@@ -269,6 +269,7 @@ test('imports MP3 and FLAC, explains invalid files', async ({ page }) => {
     await (await chooser).setFiles(fx(f));
     await page.waitForTimeout(400);
   }
+  await expect.poll(() => state<number>(page, '(s) => s.doc.sources.length')).toBe(2);
   const srcs = await state<any[]>(page, '(s) => s.doc.sources.map(x => ({ name: x.name, ch: x.channelCount, sec: x.frames / x.sampleRate }))');
   expect(srcs.map((s) => s.name)).toEqual(['chops', 'spoken']);
   expect(srcs[0].ch).toBe(2);
