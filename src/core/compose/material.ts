@@ -72,7 +72,7 @@ export function buildMaterial(slices: Slice[], sources: SourceAudio[], c: Creati
         (1 - noisiness * 0.6) * levelBias * (cat.hook ?? 1) * fav * roleBonus('lead'),
       perc: (0.2 + attack * 1.3) * gauss(Math.log(dur), Math.log(0.09), 0.7) * (cat.perc ?? 1) * fav * roleBonus('rhythm'),
       pad:
-        (0.2 + sustain) * gauss(Math.log(dur), Math.log(0.9), 0.8) * (1.2 - attack * 0.6) * (cat.pad ?? 1) * fav *
+        (0.2 + sustain) * (dur >= 0.9 ? 1 : gauss(Math.log(dur), Math.log(0.9), 0.8)) * (slice.tags.includes('sustained') ? 1.6 : 1) * (1.2 - attack * 0.6) * (cat.pad ?? 1) * fav *
         roleBonus('atmosphere'),
       ending: (0.3 + sustain) * gauss(Math.log(dur), Math.log(0.45), 0.8) * (cat.ending ?? 1) * fav,
       breath: (0.1 + noisiness) * (1.2 - intensity * 0.5) * (cat.breath ?? 1) * roleBonus('transition'),

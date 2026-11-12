@@ -4,6 +4,7 @@ import { generate } from '../../core/compose/engine';
 import { generateCandidates, generateVariations, reassignSlices } from '../../core/compose/candidates';
 import { ticksPerBar } from '../../core/time';
 import { useStore, actions } from '../store/store';
+import { ensurePads } from './projectService';
 
 const st = () => useStore.getState();
 
@@ -19,6 +20,21 @@ function req() {
   return { slices: doc.slices, sources: doc.sources, bpm: seq.bpm, timeSig: seq.timeSig, existing: seq, bars: seq.bars, beat: doc.beat?.enabled ? doc.beat : undefined };
 }
 
+/**
+ * Texture styles want long, held notes. If the project has none, the two best
+ * vowels are loop-sustained into pads first (new derived sources; undoable).
+ */
+function preparePads(s: GeneratorSettings) {
+  if (s.mode !== 'ghost' && s.direction !== 'ambient') return;
+  const before = new Set(st().doc.slices.map((x) => x.id));
+  const n = ensurePads(2, 4);
+  if (!n) return;
+  const made = st().doc.slices.filter((x) => !before.has(x.id)).map((x) => x.id);
+  const cur = st().doc.sequence.settings;
+  if (cur.sliceIds.length) actions.setSettings({ sliceIds: [...cur.sliceIds, ...made] });
+  st().toast(`Made ${n} sustained pad${n > 1 ? 's' : ''} from your vowels for this texture`, 'info');
+}
+
 function guard(fn: () => void) {
   try {
     fn();
@@ -29,6 +45,7 @@ function guard(fn: () => void) {
 
 export function composeDirect() {
   guard(() => {
+    preparePads(effectiveSettings());
     const out = generate({ ...req(), settings: effectiveSettings() });
     actions.applyArrangement(out, 'Compose', out.groove);
     st().setPrefs((d) => {
@@ -43,6 +60,7 @@ export let lastDescription: string[] = [];
 
 export function generateIdeas(count = 6) {
   guard(() => {
+    preparePads(effectiveSettings());
     const cands = generateCandidates({ ...req(), settings: effectiveSettings(), count });
     actions.addCandidates(cands);
     st().setUI({ candidateA: cands[0]?.id ?? null, candidateB: cands[1]?.id ?? null });
@@ -127,6 +145,7 @@ export function instantIdeas(recipes: { label: string; settings: Partial<Generat
   guard(() => {
     const { doc } = st();
     if (!doc.slices.length) throw new Error('Add a vocal first: import audio, record, or add a demo vocal.');
+    if (recipes.some((r) => r.settings.mode === 'ghost' || r.settings.direction === 'ambient')) preparePads({ ...effectiveSettings(), mode: 'ghost' });
     const all: Candidate[] = [];
     recipes.forEach((r, i) => {
       const settings = { ...effectiveSettings(), ...r.settings, seed: ((Date.now() & 0xfffff) + i * 977) >>> 0 };

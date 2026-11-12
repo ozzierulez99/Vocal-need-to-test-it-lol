@@ -1735,8 +1735,8 @@
  "collections": [],
  "candidates": [
   {
-   "id": "cand_mwdbpbct_67",
-   "label": "Most melodic",
+   "id": "cand_mwdbur2n_67",
+   "label": "Most fragmented",
    "profile": "melodic",
    "settings": {
     "mode": "ghost",
@@ -2208,7 +2208,7 @@
     "surprise": 0.5593333333333333
    },
    "description": [
-    "Most melodic: widest pitch movement (60%)",
+    "Most fragmented: fragmentation 10%",
     "Ghost Vocal Composer · Ambient texture · Sparse feel · seed 105941",
     "Form: A(state) → A'(vary) → C(break) → A''(return)",
     "Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G",
@@ -2225,7 +2225,7 @@
     "Harmonised 2 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474362045,
+   "createdAt": 1794474615695,
    "groove": {
     "swing": 0,
     "humanize": 0.3
@@ -2248,7 +2248,7 @@
    }
   },
   {
-   "id": "cand_mwdbpbct_68",
+   "id": "cand_mwdbur2n_68",
    "label": "Most rhythmic",
    "profile": "rhythmic",
    "settings": {
@@ -3395,7 +3395,7 @@
     "Harmonised 18 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474362045,
+   "createdAt": 1794474615695,
    "groove": {
     "swing": 0,
     "humanize": 0.3
@@ -3420,8 +3420,8 @@
    }
   },
   {
-   "id": "cand_mwdbpbct_69",
-   "label": "Most hypnotic",
+   "id": "cand_mwdbur2n_69",
+   "label": "Most surprising",
    "profile": "hypnotic",
    "settings": {
     "mode": "ghost",
@@ -3870,7 +3870,7 @@
     "surprise": 1
    },
    "description": [
-    "Most hypnotic: bar-to-bar repetition 26%",
+    "Most surprising: surprise index 100%",
     "Ghost Vocal Composer · Ambient texture · Hypnotic feel · seed 226508",
     "Form: A(state) → A'(vary) → C(break) → A''(return)",
     "Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G",
@@ -3887,7 +3887,7 @@
     "Harmonised 4 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": true,
-   "createdAt": 1794474362045,
+   "createdAt": 1794474615695,
    "groove": {
     "swing": 0,
     "humanize": 0.3
@@ -3910,8 +3910,8 @@
    }
   },
   {
-   "id": "cand_mwdbpbct_70",
-   "label": "Most spacious",
+   "id": "cand_mwdbur2n_70",
+   "label": "Most hypnotic",
    "profile": "spacious",
    "settings": {
     "mode": "ghost",
@@ -4286,7 +4286,7 @@
     "surprise": 0.6955555555555556
    },
    "description": [
-    "Most spacious: 68% silence",
+    "Most hypnotic: bar-to-bar repetition 51%",
     "Ghost Vocal Composer · Ambient texture · Sparse feel · seed 129698",
     "Form: A(state) → A'(vary) → C(break) → A''(return)",
     "Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G",
@@ -4301,7 +4301,7 @@
     "Harmonised 2 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474362045,
+   "createdAt": 1794474615695,
    "groove": {
     "swing": 0,
     "humanize": 0.3
@@ -4325,14 +4325,14 @@
    }
   },
   {
-   "id": "cand_mwdbpbct_71",
-   "label": "Most fragmented",
+   "id": "cand_mwdbur2n_71",
+   "label": "Most spacious",
    "profile": "fragmented",
    "settings": {
     "mode": "ghost",
     "direction": "ambient",
     "feel": "sparse",
-    "seed": 242346,
+    "seed": 347075,
     "bars": 8,
     "phraseBars": 2,
     "keyRoot": 9,
@@ -4462,14 +4462,14 @@
    ],
    "events": [
     {
-     "id": "g56zu-e0",
+     "id": "g7fsz-e0",
      "trackId": "trk-lead",
-     "sliceId": "src1-14",
-     "tick": 960,
-     "length": 2427,
+     "sliceId": "src1-47",
+     "tick": 0,
+     "length": 2785,
      "offset": 0,
-     "gain": -1.3,
-     "semitones": -3.97,
+     "gain": -4.1,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 180,
      "fadeOut": 450,
@@ -4481,14 +4481,14 @@
      "gesture": "motif"
     },
     {
-     "id": "g56zu-e9",
+     "id": "g7fsz-eb",
      "trackId": "trk-ornament",
-     "sliceId": "src1-14",
-     "tick": 1680,
+     "sliceId": "src1-47",
+     "tick": 720,
      "length": 648,
      "offset": 0,
-     "gain": -6.8,
-     "semitones": -3.97,
+     "gain": -9.6,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 3,
      "fadeOut": 450,
@@ -4499,14 +4499,14 @@
      "gesture": "echo"
     },
     {
-     "id": "g56zu-ea",
+     "id": "g7fsz-ec",
      "trackId": "trk-ornament",
-     "sliceId": "src1-14",
-     "tick": 2400,
+     "sliceId": "src1-47",
+     "tick": 1440,
      "length": 648,
      "offset": 0,
-     "gain": -12.3,
-     "semitones": -3.97,
+     "gain": -15.1,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 3,
      "fadeOut": 450,
@@ -4517,14 +4517,14 @@
      "gesture": "echo"
     },
     {
-     "id": "g56zu-eb",
+     "id": "g7fsz-ed",
      "trackId": "trk-ornament",
-     "sliceId": "src1-14",
-     "tick": 3120,
+     "sliceId": "src1-47",
+     "tick": 2160,
      "length": 648,
      "offset": 0,
-     "gain": -17.8,
-     "semitones": -3.97,
+     "gain": -20.6,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 3,
      "fadeOut": 450,
@@ -4535,86 +4535,127 @@
      "gesture": "echo"
     },
     {
-     "id": "g56zu-e3",
+     "id": "g7fsz-e4",
      "trackId": "trk-atmosphere",
-     "sliceId": "src1-14",
+     "sliceId": "src1-47",
      "tick": 3840,
-     "length": 4074,
+     "length": 4970,
      "offset": 0,
-     "gain": -10.2,
-     "semitones": -10.97,
+     "gain": -14,
+     "semitones": -10.03,
      "reverse": false,
      "fadeIn": 180,
      "fadeOut": 450,
-     "pan": -0.34248106470331546,
+     "pan": -0.49096327177248894,
      "velocity": 0.5,
      "locked": false,
      "role": "atmosphere",
      "gesture": "atmos"
     },
     {
-     "id": "g56zu-e7",
+     "id": "g7fsz-e8",
      "trackId": "trk-transition",
-     "sliceId": "src1-14",
-     "tick": 12933,
-     "length": 2427,
+     "sliceId": "src1-31",
+     "tick": 6677,
+     "length": 1003,
      "offset": 0,
-     "gain": -5.3,
-     "semitones": 0.03,
-     "reverse": true,
-     "fadeIn": 200,
-     "fadeOut": 5,
+     "gain": -6.1,
+     "semitones": 0,
+     "reverse": false,
+     "fadeIn": 40,
+     "fadeOut": 60,
      "pan": 0,
-     "velocity": 0.6,
+     "velocity": 0.5,
      "locked": false,
      "role": "transition",
-     "gesture": "swell"
+     "gesture": "breath"
     },
     {
-     "id": "g56zu-e4",
-     "trackId": "trk-atmosphere",
-     "sliceId": "src1-14",
-     "tick": 15360,
-     "length": 4074,
-     "offset": 0,
-     "gain": -9.5,
-     "semitones": -6.97,
-     "reverse": false,
-     "fadeIn": 180,
-     "fadeOut": 450,
-     "pan": 0.5335412269458175,
-     "velocity": 0.5,
-     "locked": false,
-     "role": "atmosphere",
-     "gesture": "atmos"
-    },
-    {
-     "id": "g56zu-e6",
-     "trackId": "trk-atmosphere-2",
-     "sliceId": "src1-46",
-     "tick": 15360,
-     "length": 1717,
-     "offset": 0,
-     "gain": -9,
-     "semitones": -9.030000000000001,
-     "reverse": false,
-     "fadeIn": 180,
-     "fadeOut": 450,
-     "pan": -0.5862333904718979,
-     "velocity": 0.5,
-     "locked": false,
-     "role": "atmosphere",
-     "gesture": "atmos"
-    },
-    {
-     "id": "g56zu-e1",
+     "id": "g7fsz-e1",
      "trackId": "trk-lead",
-     "sliceId": "src1-14",
-     "tick": 16320,
-     "length": 3052,
+     "sliceId": "src1-33",
+     "tick": 6720,
+     "length": 960,
      "offset": 0,
-     "gain": -1.3,
+     "gain": -3.3,
      "semitones": -3.97,
+     "reverse": false,
+     "fadeIn": 180,
+     "fadeOut": 450,
+     "pan": 0,
+     "velocity": 0.79,
+     "locked": false,
+     "role": "lead",
+     "motifId": "motif-main",
+     "gesture": "motif",
+     "glideOut": [
+      -12,
+      257
+     ]
+    },
+    {
+     "id": "g7fsz-e9",
+     "trackId": "trk-transition",
+     "sliceId": "src1-31",
+     "tick": 14357,
+     "length": 1003,
+     "offset": 0,
+     "gain": -6.1,
+     "semitones": 0,
+     "reverse": false,
+     "fadeIn": 40,
+     "fadeOut": 60,
+     "pan": 0,
+     "velocity": 0.5,
+     "locked": false,
+     "role": "transition",
+     "gesture": "breath"
+    },
+    {
+     "id": "g7fsz-e5",
+     "trackId": "trk-atmosphere",
+     "sliceId": "src1-47",
+     "tick": 15360,
+     "length": 4970,
+     "offset": 0,
+     "gain": -11.8,
+     "semitones": -10.03,
+     "reverse": false,
+     "fadeIn": 180,
+     "fadeOut": 450,
+     "pan": 0.5554119755979627,
+     "velocity": 0.5,
+     "locked": false,
+     "role": "atmosphere",
+     "gesture": "atmos"
+    },
+    {
+     "id": "g7fsz-e7",
+     "trackId": "trk-atmosphere-2",
+     "sliceId": "src1-14",
+     "tick": 15360,
+     "length": 4854,
+     "offset": 0,
+     "gain": -8.3,
+     "semitones": -11.97,
+     "reverse": false,
+     "fadeIn": 180,
+     "fadeOut": 450,
+     "pan": -0.3302296601235866,
+     "velocity": 0.5,
+     "locked": false,
+     "role": "atmosphere",
+     "gesture": "atmos"
+    },
+    {
+     "id": "g7fsz-e2",
+     "trackId": "trk-lead",
+     "sliceId": "src1-47",
+     "tick": 15360,
+     "length": 3317,
+     "offset": 0,
+     "gain": -4.1,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 180,
      "fadeOut": 450,
@@ -4626,14 +4667,14 @@
      "gesture": "break"
     },
     {
-     "id": "g56zu-ec",
+     "id": "g7fsz-ee",
      "trackId": "trk-ornament",
-     "sliceId": "src1-14",
-     "tick": 17040,
+     "sliceId": "src1-47",
+     "tick": 16080,
      "length": 648,
      "offset": 0,
-     "gain": -6.8,
-     "semitones": -3.97,
+     "gain": -9.6,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 3,
      "fadeOut": 450,
@@ -4644,14 +4685,14 @@
      "gesture": "echo"
     },
     {
-     "id": "g56zu-ed",
+     "id": "g7fsz-ef",
      "trackId": "trk-ornament",
-     "sliceId": "src1-14",
-     "tick": 17760,
+     "sliceId": "src1-47",
+     "tick": 16800,
      "length": 648,
      "offset": 0,
-     "gain": -12.3,
-     "semitones": -3.97,
+     "gain": -15.1,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 3,
      "fadeOut": 450,
@@ -4662,14 +4703,14 @@
      "gesture": "echo"
     },
     {
-     "id": "g56zu-ee",
+     "id": "g7fsz-eg",
      "trackId": "trk-ornament",
-     "sliceId": "src1-14",
-     "tick": 18480,
+     "sliceId": "src1-47",
+     "tick": 17520,
      "length": 648,
      "offset": 0,
-     "gain": -17.8,
-     "semitones": -3.97,
+     "gain": -20.6,
+     "semitones": -3.03,
      "reverse": false,
      "fadeIn": 3,
      "fadeOut": 450,
@@ -4680,14 +4721,14 @@
      "gesture": "echo"
     },
     {
-     "id": "g56zu-e8",
+     "id": "g7fsz-ea",
      "trackId": "trk-transition",
-     "sliceId": "src1-14",
-     "tick": 20613,
-     "length": 2427,
+     "sliceId": "src1-47",
+     "tick": 20255,
+     "length": 2785,
      "offset": 0,
-     "gain": -5.3,
-     "semitones": 0.03,
+     "gain": -8.1,
+     "semitones": -0.03,
      "reverse": true,
      "fadeIn": 200,
      "fadeOut": 5,
@@ -4698,15 +4739,15 @@
      "gesture": "swell"
     },
     {
-     "id": "g56zu-e2",
+     "id": "g7fsz-e3",
      "trackId": "trk-lead",
-     "sliceId": "src1-44",
-     "tick": 22560,
-     "length": 480,
+     "sliceId": "src1-33",
+     "tick": 22080,
+     "length": 960,
      "offset": 0,
      "gain": -3.3,
-     "semitones": -4,
-     "reverse": true,
+     "semitones": -3.97,
+     "reverse": false,
      "fadeIn": 180,
      "fadeOut": 450,
      "pan": 0,
@@ -4714,25 +4755,29 @@
      "locked": false,
      "role": "lead",
      "motifId": "motif-main",
-     "gesture": "break"
+     "gesture": "break",
+     "glideOut": [
+      -12,
+      257
+     ]
     },
     {
-     "id": "g56zu-e5",
+     "id": "g7fsz-e6",
      "trackId": "trk-atmosphere",
-     "sliceId": "src1-44",
-     "tick": 26880,
-     "length": 3840,
+     "sliceId": "src1-33",
+     "tick": 30000,
+     "length": 666,
      "offset": 0,
-     "gain": -10.7,
-     "semitones": -9,
-     "reverse": false,
-     "fadeIn": 180,
+     "gain": -10.5,
+     "semitones": -12,
+     "reverse": true,
+     "fadeIn": 540,
      "fadeOut": 450,
-     "pan": -0.3167703129351139,
+     "pan": -0.3768355039414018,
      "velocity": 0.5,
      "locked": false,
      "role": "atmosphere",
-     "gesture": "atmos"
+     "gesture": "swell"
     }
    ],
    "motifs": [
@@ -4742,21 +4787,21 @@
      "span": 7680,
      "notes": [
       {
-       "tick": 960,
-       "length": 2427,
-       "sliceId": "src1-14",
-       "semitones": -3.97,
+       "tick": 0,
+       "length": 2785,
+       "sliceId": "src1-47",
+       "semitones": -3.03,
        "offset": 0,
        "reverse": false,
        "accent": 1
       },
       {
-       "tick": 7200,
-       "length": 480,
-       "sliceId": "src1-44",
-       "semitones": -4,
+       "tick": 6720,
+       "length": 960,
+       "sliceId": "src1-33",
+       "semitones": -4.97,
        "offset": 0,
-       "reverse": true,
+       "reverse": false,
        "accent": 0.4
       }
      ],
@@ -4766,59 +4811,58 @@
    ],
    "metrics": {
     "density": 0.109375,
-    "repetition": 0.2333333333333333,
-    "pitchSpread": 0.4843616710048648,
-    "fragmentation": 0.09834645483754222,
-    "syncopation": 0.4642857142857143,
-    "silence": 0.34375,
-    "variety": 0.25,
-    "surprise": 0.7066666666666668
+    "repetition": 0.31,
+    "pitchSpread": 0.6347427173875321,
+    "fragmentation": 0.10539262639049007,
+    "syncopation": 0.42857142857142855,
+    "silence": 0.4296875,
+    "variety": 0.3333333333333333,
+    "surprise": 0.5112941176470588
    },
    "description": [
-    "Most fragmented: fragmentation 10%",
-    "Ghost Vocal Composer · Ambient texture · Sparse feel · seed 242346",
+    "Most spacious: 43% silence",
+    "Ghost Vocal Composer · Ambient texture · Sparse feel · seed 347075",
     "Form: A(state) → A'(vary) → C(break) → A''(return)",
     "Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G",
     "Central motif: Ghost motif – 2 notes over 8 beats",
-    "A': motif varied (replace-one, extend)",
+    "A': motif varied (insert-rest)",
     "C: breakdown – one statement then space",
     "A'': original motif returns",
-    "Atmosphere: 3 sparse pitched-down (-5 st) fragments, delayed entrance at bar 2",
-    "Atmosphere B: 1 sparse pitched-down (-5 st) fragments, delayed entrance at bar 5",
-    "→ A': deliberate silence before bar 3",
-    "→ C: reverse swell lands on bar 5",
+    "Atmosphere: 3 sparse pitched-down (-7 st) fragments, delayed entrance at bar 2",
+    "Atmosphere B: 1 sparse pitched-down (-12 st) fragments, delayed entrance at bar 5",
+    "→ A': breath before bar 3",
+    "→ C: breath before bar 5",
     "→ A'': reverse swell lands on bar 7",
-    "Ornaments: 6 echo throws",
+    "Ornaments: 2 tape-stop falls, 6 echo throws",
     "Harmonised 5 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474362045,
+   "createdAt": 1794474615695,
    "groove": {
     "swing": 0,
     "humanize": 0.3
    },
    "score": {
-    "total": 90,
+    "total": 92,
     "parts": {
-     "rhythm": 98,
-     "melody": 76,
+     "rhythm": 94,
+     "melody": 87,
      "sound": 100,
      "fit": 93
     },
     "good": [
-     "rhythm repeats clearly",
      "every note is in key",
      "clean, clearly pitched vowels",
      "strong notes sit on your chords"
     ],
     "watch": [
-     "the line never changes pitch"
+     "identical every bar – no development"
     ]
    }
   },
   {
-   "id": "cand_mwdbpbct_72",
-   "label": "Most surprising",
+   "id": "cand_mwdbur2n_72",
+   "label": "Most melodic",
    "profile": "surprising",
    "settings": {
     "mode": "ghost",
@@ -5196,7 +5240,7 @@
     "surprise": 1
    },
    "description": [
-    "Most surprising: surprise index 100%",
+    "Most melodic: widest pitch movement (75%)",
     "Ghost Vocal Composer · Ambient texture · Sparse feel · seed 354994",
     "Form: A(state) → A'(vary) → C(break) → A''(return)",
     "Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G",
@@ -5213,7 +5257,7 @@
     "Harmonised 6 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474362045,
+   "createdAt": 1794474615695,
    "groove": {
     "swing": 0,
     "humanize": 0.3

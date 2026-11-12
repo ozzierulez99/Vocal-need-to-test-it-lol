@@ -3173,7 +3173,7 @@
  "collections": [],
  "candidates": [
   {
-   "id": "cand_mwdbp6mr_49",
+   "id": "cand_mwdbumf7_49",
    "label": "Most hypnotic",
    "profile": "melodic",
    "settings": {
@@ -4696,7 +4696,7 @@
     "Harmonised 28 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474355923,
+   "createdAt": 1794474609667,
    "groove": {
     "swing": 0,
     "humanize": 0
@@ -4719,7 +4719,7 @@
    }
   },
   {
-   "id": "cand_mwdbp6ms_50",
+   "id": "cand_mwdbumf7_50",
    "label": "Most surprising",
    "profile": "rhythmic",
    "settings": {
@@ -6985,7 +6985,7 @@
     "Harmonised 16 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474355924,
+   "createdAt": 1794474609667,
    "groove": {
     "swing": 0,
     "humanize": 0
@@ -7008,7 +7008,7 @@
    }
   },
   {
-   "id": "cand_mwdbp6ms_51",
+   "id": "cand_mwdbumf7_51",
    "label": "Most rhythmic",
    "profile": "hypnotic",
    "settings": {
@@ -8794,7 +8794,7 @@
     "Harmonised 19 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474355924,
+   "createdAt": 1794474609667,
    "groove": {
     "swing": 0,
     "humanize": 0
@@ -8820,7 +8820,7 @@
    }
   },
   {
-   "id": "cand_mwdbp6ms_52",
+   "id": "cand_mwdbumf7_52",
    "label": "Most fragmented",
    "profile": "spacious",
    "settings": {
@@ -10726,7 +10726,7 @@
     "Harmonised 17 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": true,
-   "createdAt": 1794474355924,
+   "createdAt": 1794474609667,
    "groove": {
     "swing": 0,
     "humanize": 0
@@ -10749,7 +10749,7 @@
    }
   },
   {
-   "id": "cand_mwdbp6ms_53",
+   "id": "cand_mwdbumf7_53",
    "label": "Most melodic",
    "profile": "fragmented",
    "settings": {
@@ -12506,7 +12506,7 @@
     "Harmonised 16 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474355924,
+   "createdAt": 1794474609667,
    "groove": {
     "swing": 0,
     "humanize": 0
@@ -12531,7 +12531,7 @@
    }
   },
   {
-   "id": "cand_mwdbp6ms_54",
+   "id": "cand_mwdbumf7_54",
    "label": "Most spacious",
    "profile": "surprising",
    "settings": {
@@ -13513,7 +13513,7 @@
     "Harmonised 12 note(s) to the chord underneath (playback-rate pitch)"
    ],
    "favourite": false,
-   "createdAt": 1794474355924,
+   "createdAt": 1794474609667,
    "groove": {
     "swing": 0,
     "humanize": 0

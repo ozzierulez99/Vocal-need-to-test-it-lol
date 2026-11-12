@@ -14,7 +14,7 @@ Beat MIDIs used: `am-f-c-g-pads` (Am – F – C – G pads (140 BPM)), `cm-arp`
 - **Beat MIDI:** Am – F – C – G pads (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Hook in key, on the chords” – A floating melodic hook in A minor; strong notes land on chord tones, 2-bar phrases follow the  chord changes.
-- **Generated:** 6 ideas in 86 ms (Most fragmented, Most rhythmic, Most melodic, Most spacious, Most hypnotic, Most surprising) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 55 ms (Most fragmented, Most rhythmic, Most melodic, Most spacious, Most hypnotic, Most surprising) · 8 bars at 140 BPM
 
 ### Idea: Most melodic
 
@@ -72,7 +72,7 @@ Project: `projects/01-tonight-hook-am-f-c-g.vcs` (open it in the app – all six
 - **Beat MIDI:** Cm – Ab – Eb – Bb 16th arp (150 BPM) → read as **C minor**, chords Cm – Ab – Eb – Bb, arp, 4.0 onsets/beat
 - **Vocal vs beat:** 8/35 pitched slices in key (vocal sits ~1 st below – fixed per note by playback-rate transposition)
 - **Recipe:** “Chops in the gaps” – Your arp is busy, so syllable chops are placed on the sixteenths it leaves free – call and response with the beat itself.
-- **Generated:** 6 ideas in 46 ms (Most rhythmic, Most hypnotic, Most melodic, Most spacious, Most fragmented, Most surprising) · 8 bars at 150 BPM
+- **Generated:** 6 ideas in 39 ms (Most rhythmic, Most hypnotic, Most melodic, Most spacious, Most fragmented, Most surprising) · 8 bars at 150 BPM
 
 ### Idea: Most rhythmic
 
@@ -111,7 +111,7 @@ Project: `projects/02-tonight-chops-cm-arp.vcs` (open it in the app – all six 
 - **Beat MIDI:** Cm – Ab – Eb – Bb 16th arp (150 BPM) → read as **C minor**, chords Cm – Ab – Eb – Bb, arp, 4.0 onsets/beat
 - **Vocal vs beat:** 8/35 pitched slices in key (vocal sits ~1 st below – fixed per note by playback-rate transposition)
 - **Recipe:** “Ride the arp” – Vocal slices are triggered by the MIDI itself – same rhythm, its notes become playback-rate pitches – a vocal double of your arp.
-- **Generated:** 6 ideas in 52 ms (Most rhythmic, Most melodic, Most hypnotic, Most fragmented, Most spacious, Most surprising) · 8 bars at 150 BPM
+- **Generated:** 6 ideas in 56 ms (Most rhythmic, Most melodic, Most hypnotic, Most fragmented, Most spacious, Most surprising) · 8 bars at 150 BPM
 
 ### Idea: Most hypnotic
 
@@ -139,7 +139,7 @@ Project: `projects/03-tonight-ride-the-arp.vcs` (open it in the app – all six 
 - **Beat MIDI:** Am – F – C – G pads (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 14/41 pitched slices in key (vocal sits ~1 st below – fixed per note by playback-rate transposition)
 - **Recipe:** “Hook in key, on the chords” – A floating melodic hook in A minor; strong notes land on chord tones, 2-bar phrases follow the  chord changes. _Harmonise off – the spoken words keep their natural speech pitch; only timing/order is recomposed._
-- **Generated:** 6 ideas in 28 ms (Most fragmented, Most rhythmic, Most hypnotic, Most spacious, Most melodic, Most surprising) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 26 ms (Most fragmented, Most rhythmic, Most hypnotic, Most spacious, Most melodic, Most surprising) · 8 bars at 140 BPM
 
 ### Idea: Most hypnotic
 
@@ -176,32 +176,29 @@ Project: `projects/04-never-meant-phrase.vcs` (open it in the app – all six id
 - **Beat MIDI:** Am – F – C – G pads (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 11/12 pitched slices in key
 - **Recipe:** “Ghost layer under the progression” – Sparse sustained fragments enter on chord changes and are tuned to the chord underneath – texture for a slow, drain-style section.
-- **Generated:** 6 ideas in 23 ms (Most spacious, Most rhythmic, Most hypnotic, Most surprising, Most melodic, Most fragmented) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 19 ms (Most fragmented, Most rhythmic, Most melodic, Most spacious, Most hypnotic, Most surprising) · 8 bars at 140 BPM
 
 ### Idea: Most spacious
 
 - `audio/05-whisper-hum-ghost_most-spacious_vocals.mp3` – the app's WAV export (vocals only, normalised to −1 dBFS)
 - `audio/05-whisper-hum-ghost_most-spacious_with-beat.mp3` – same, with the beat MIDI on a simple preview synth (listening reference only)
-- Hook check **91/100** – catchy rhythm: syncopated, repeats, then changes; every note is in key; clean, clearly pitched vowels; strong notes sit on your chords
-- 19 events on Ghost hook, Ghost layer A, Ghost layer B, Transitions, Echoes & doubles
+- Hook check **89/100** – every note is in key; clean, clearly pitched vowels · watch: identical every bar – no development; the line never changes pitch
+- 4 events on Ghost hook, Transitions
 
 <details><summary>Why the app made these decisions</summary>
 
-- Most spacious: 44% silence
-- Ghost Vocal Composer · Ambient texture · Sparse feel · seed 314692
+- Most spacious: 57% silence
+- Ghost Vocal Composer · Ambient texture · Sparse feel · seed 24262
 - Form: A(state) → A'(vary) → C(break) → A''(return)
 - Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G
-- Central motif: Ghost motif – 2 notes over 8 beats
-- A': motif varied (extend)
+- Central motif: Ghost motif – 1 notes over 8 beats
+- A': motif varied (insert-rest, extend)
 - C: breakdown – one statement then space
 - A'': original motif returns
-- Atmosphere: 3 sparse pitched-down (-7 st) fragments, delayed entrance at bar 2
-- Atmosphere B: 1 sparse pitched-down (-12 st) fragments, delayed entrance at bar 5
-- → A': reverse swell lands on bar 3
-- → C: deliberate silence before bar 5
-- → A'': deliberate silence before bar 7
-- Ornaments: 6 echo throws, 1 gated notes
-- Harmonised 8 note(s) to the chord underneath (playback-rate pitch)
+- → A': deliberate silence before bar 3
+- → C: reverse swell lands on bar 5
+- → A'': reverse swell lands on bar 7
+- Harmonised 2 note(s) to the chord underneath (playback-rate pitch)
 
 </details>
 
@@ -213,7 +210,7 @@ Project: `projects/05-whisper-hum-ghost.vcs` (open it in the app – all six ide
 - **Beat MIDI:** Dm7 – G7 off-beat stabs (128 BPM) → read as **D dorian**, chords Dm7 – G7, chords, 1.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Two voices answering each other” – Call and response between two of your recordings, phrased in the loop’s bar length and tuned to the chords.
-- **Generated:** 6 ideas in 46 ms (Most rhythmic, Most fragmented, Most hypnotic, Most melodic, Most spacious, Most surprising) · 8 bars at 128 BPM
+- **Generated:** 6 ideas in 38 ms (Most rhythmic, Most fragmented, Most hypnotic, Most melodic, Most spacious, Most surprising) · 8 bars at 128 BPM
 
 ### Idea: Most rhythmic
 
@@ -246,7 +243,7 @@ Project: `projects/06-conversation-dorian.vcs` (open it in the app – all six i
 - **Beat MIDI:** Cm – Ab – Eb – Bb 16th arp (150 BPM) → read as **C minor**, chords Cm – Ab – Eb – Bb, arp, 4.0 onsets/beat
 - **Vocal vs beat:** 12/27 pitched slices in key (vocal sits ~2 st below – fixed per note by playback-rate transposition)
 - **Recipe:** “Glitch fills between the notes” – Tiny stutters and retriggers that only occupy the beat’s free sixteenths – hyperpop/glitch energy without masking your synths.
-- **Generated:** 6 ideas in 77 ms (Most rhythmic, Most hypnotic, Most surprising, Most fragmented, Most melodic, Most spacious) · 8 bars at 150 BPM
+- **Generated:** 6 ideas in 71 ms (Most rhythmic, Most hypnotic, Most surprising, Most fragmented, Most melodic, Most spacious) · 8 bars at 150 BPM
 
 ### Idea: Most fragmented
 
@@ -283,7 +280,7 @@ Project: `projects/07-adlibs-glitch-cm-arp.vcs` (open it in the app – all six 
 - **Beat MIDI:** Full beat: pads + bass + lead + half-time drums (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Hook in key, on the chords” – A floating melodic hook in A minor; strong notes land on chord tones, 2-bar phrases follow the  chord changes. _The beat MIDI has four parts; the drums set the half-time feel and the chops stay out of the lead synth’s register._
-- **Generated:** 6 ideas in 49 ms (Most melodic, Most rhythmic, Most hypnotic, Most spacious, Most fragmented, Most surprising) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 29 ms (Most melodic, Most rhythmic, Most hypnotic, Most spacious, Most fragmented, Most surprising) · 8 bars at 140 BPM
 
 ### Idea: Most melodic
 
@@ -318,7 +315,7 @@ Project: `projects/08-drain-float-full-beat.vcs` (open it in the app – all six
 - **Beat MIDI:** Am – F – C – G pads (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Hook in key, on the chords” – A floating melodic hook in A minor; strong notes land on chord tones, 2-bar phrases follow the  chord changes.
-- **Generated:** 6 ideas in 42 ms (Most hypnotic, Most surprising, Most rhythmic, Most fragmented, Most melodic, Most spacious) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 58 ms (Most hypnotic, Most surprising, Most rhythmic, Most fragmented, Most melodic, Most spacious) · 8 bars at 140 BPM
 
 ### Idea: Most fragmented
 
@@ -356,7 +353,7 @@ Project: `projects/09-hyperpop-hook.vcs` (open it in the app – all six ideas a
 - **Beat MIDI:** Am – F – C – G pads (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Hook in key, on the chords” – A floating melodic hook in A minor; strong notes land on chord tones, 2-bar phrases follow the  chord changes.
-- **Generated:** 6 ideas in 47 ms (Most fragmented, Most melodic, Most hypnotic, Most rhythmic, Most surprising, Most spacious) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 70 ms (Most fragmented, Most melodic, Most hypnotic, Most rhythmic, Most surprising, Most spacious) · 8 bars at 140 BPM
 
 ### Idea: Most surprising
 
@@ -393,7 +390,7 @@ Project: `projects/10-trance-lead.vcs` (open it in the app – all six ideas are
 - **Beat MIDI:** Dm7 – G7 off-beat stabs (128 BPM) → read as **D dorian**, chords Dm7 – G7, chords, 1.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Rhythmic chops over the chords” – The beat leaves room, so the vocal can carry the rhythm: syncopated chops, accents and stutters, kept in key.
-- **Generated:** 6 ideas in 32 ms (Most melodic, Most surprising, Most hypnotic, Most spacious, Most fragmented, Most rhythmic) · 8 bars at 128 BPM
+- **Generated:** 6 ideas in 34 ms (Most melodic, Most surprising, Most hypnotic, Most spacious, Most fragmented, Most rhythmic) · 8 bars at 128 BPM
 
 ### Idea: Most rhythmic
 
@@ -428,18 +425,18 @@ Project: `projects/11-garage-shuffle.vcs` (open it in the app – all six ideas 
 - **Beat MIDI:** Am – F – C – G pads (140 BPM) → read as **A minor**, chords Am – F – C – G, chords, 0.3 onsets/beat
 - **Vocal vs beat:** 29/35 pitched slices in key
 - **Recipe:** “Ghost layer under the progression” – Sparse sustained fragments enter on chord changes and are tuned to the chord underneath – texture for a slow, drain-style section. _Meant as raw material: put a long reverb on it in your DAW._
-- **Generated:** 6 ideas in 16 ms (Most melodic, Most rhythmic, Most hypnotic, Most spacious, Most fragmented, Most surprising) · 8 bars at 140 BPM
+- **Generated:** 6 ideas in 14 ms (Most fragmented, Most rhythmic, Most surprising, Most hypnotic, Most spacious, Most melodic) · 8 bars at 140 BPM
 
-### Idea: Most hypnotic
+### Idea: Most surprising
 
-- `audio/12-ambient-wash_most-hypnotic_vocals.mp3` – the app's WAV export (vocals only, normalised to −1 dBFS)
-- `audio/12-ambient-wash_most-hypnotic_with-beat.mp3` – same, with the beat MIDI on a simple preview synth (listening reference only)
+- `audio/12-ambient-wash_most-surprising_vocals.mp3` – the app's WAV export (vocals only, normalised to −1 dBFS)
+- `audio/12-ambient-wash_most-surprising_with-beat.mp3` – same, with the beat MIDI on a simple preview synth (listening reference only)
 - Hook check **93/100** – rhythm repeats clearly; every note is in key; clean, clearly pitched vowels; strong notes sit on your chords
 - 15 events on Ghost hook, Ghost layer A, Ghost layer B, Transitions, Echoes & doubles
 
 <details><summary>Why the app made these decisions</summary>
 
-- Most hypnotic: bar-to-bar repetition 26%
+- Most surprising: surprise index 100%
 - Ghost Vocal Composer · Ambient texture · Hypnotic feel · seed 226508
 - Form: A(state) → A'(vary) → C(break) → A''(return)
 - Fitted to beat “Am – F – C – G pads (140 BPM)”: A minor, Am–F–C–G
