@@ -98,9 +98,40 @@ export function scoreHook(input: CriticInput): HookScore {
   }
   const air = 1 - sounding.reduce((a, b) => a + b, 0) / sounding.length;
   const airScore = busyStyle ? band(air, 0.1, 0.7, 0.3) : band(air, 0.2, 0.85, 0.25);
-  const rhythm = 100 * (densityScore * 0.25 + syncScore * 0.2 + repScore * 0.25 + anchorScore * 0.15 + airScore * 0.15);
-  if (repScore > 0.9 && syncScore > 0.8) good.push('catchy rhythm: syncopated and it repeats');
+  const hygieneR = densityScore * 0.25 + syncScore * 0.2 + repScore * 0.25 + anchorScore * 0.15 + airScore * 0.15;
+
+  // craft: the things that separate a usable pattern from a hook
+  const traits = DIRECTIONS[s.direction].traits;
+  const machineStyle = busyStyle || traits.gate >= 0.5 || traits.arp >= 0.5 || s.mode === 'midi';
+  // 1. long and short notes contrast (a hook has a shape, not a row of equal hits)
+  const onsetTicks = Array.from(new Set(lead.map((e) => e.tick))).sort((a, b) => a - b);
+  const iois = onsetTicks.slice(1).map((t, i) => Math.round((t - onsetTicks[i]) / step)).filter((x) => x > 0).sort((a, b) => a - b);
+  const contrast = iois.length >= 3 ? iois[Math.floor(iois.length * 0.9)] / Math.max(1, iois[Math.floor(iois.length / 2)]) : 1;
+  const contrastScore = machineStyle || sparseStyle ? 1 : band(contrast, 2, 8, 1.2);
+  // 2. repeats, but not as a copy: the best hooks restate and then change something
+  const restate = !repN ? 0.6 : rep >= 0.97 ? (machineStyle ? 0.9 : 0.7) : band(rep, 0.55, 0.97, 0.3);
+  // 3. breathes before each phrase comes back round
+  const phraseT = Math.max(1, s.phraseBars) * bar;
+  let breaths = 0;
+  let phrases = 0;
+  for (let t = phraseT; t <= input.bars * bar; t += phraseT) {
+    phrases++;
+    const from = Math.round((t - beatT) / step);
+    let quiet = 0;
+    for (let x = from; x < Math.min(sounding.length, Math.round(t / step)); x++) if (!sounding[x]) quiet++;
+    if (quiet >= 2) breaths++;
+  }
+  const breathScore = sparseStyle || machineStyle ? 1 : phrases ? 0.45 + 0.55 * (breaths / phrases) : 0.8;
+  // 4. hook-sized: enough notes to be a tune, few enough to remember
+  const sizeScore = busyStyle || sparseStyle ? 1 : (s.purpose ?? 'hook') === 'verse' ? band(perBar, 1, 4, 2) : band(perBar, 2.5, 6.5, 2.5);
+  const craftR = contrastScore * 0.3 + restate * 0.3 + breathScore * 0.2 + sizeScore * 0.2;
+  const rhythm = 100 * (hygieneR * 0.55 + craftR * 0.45);
+  if (restate > 0.95 && syncScore > 0.8) good.push('catchy rhythm: syncopated, repeats, then changes');
   else if (repScore > 0.9) good.push('rhythm repeats clearly');
+  if (!machineStyle && !sparseStyle && contrastScore < 0.6) watch.push('every note is about the same length – no rhythmic shape');
+  if (!machineStyle && rep >= 0.97 && repN) watch.push('identical every bar – no development');
+  if (!machineStyle && !sparseStyle && phrases > 1 && breaths / phrases < 0.5) watch.push('no breath between phrases');
+  else if (!machineStyle && !sparseStyle && phrases > 1 && breaths === phrases) good.push('breathes before each phrase returns');
   if (repScore < 0.5) watch.push('rhythm changes a lot from bar to bar');
   if (densityScore < 0.6) watch.push(perBar > 8 ? 'very busy' : 'very few notes');
   if (airScore < 0.6) watch.push(air < 0.2 ? 'little breathing space' : 'mostly silence');
@@ -144,7 +175,52 @@ export function scoreHook(input: CriticInput): HookScore {
       const chord = beat ? chordAt(beat, lastP.e.tick) : null;
       resolves = pc(lastP.p) === key.root ? 1 : triad.includes(pc(lastP.p)) || chord?.pcs.includes(pc(lastP.p)) ? 0.85 : 0.35;
     }
-    melody = 100 * (inKey * 0.3 + rangeScore * 0.15 + motionScore * 0.15 + leapScore * 0.1 + varietyScore * 0.1 + resolves * 0.2);
+    const hygieneM = inKey * 0.3 + rangeScore * 0.15 + motionScore * 0.15 + leapScore * 0.1 + varietyScore * 0.1 + resolves * 0.2;
+    // craft
+    let craftM = 0.8;
+    if (melodicMode && s.mode !== 'ghost') {
+      // 1. one clear high point, not a line that sits on its top note
+      const top = Math.round(Math.max(...ps));
+      const topShare = ps.filter((p) => Math.round(p) === top).length / ps.length;
+      const apexScore = range < 1.5 ? 0.4 : band(topShare, 0.02, 0.3, 0.3) * (Math.round(ps[0]) === top && topShare < 0.2 ? 0.8 : 1);
+      // 2. long / on-beat notes rest on stable degrees (root, third, fifth), movement happens in between
+      let stableT = 0;
+      let totalT = 0;
+      if (key) {
+        const triad = new Set([key.root, (key.root + (SCALES[key.scale].includes(4) ? 4 : 3)) % 12, (key.root + 7) % 12]);
+        for (const { e, p } of pitched) {
+          const w = Math.min(e.length, beatT * 2) * (e.tick % beatT === 0 ? 1.5 : 1);
+          totalT += w;
+          const chord = beat ? chordAt(beat, e.tick) : null;
+          if (chord && chord.quality !== 'note' ? chord.pcs.includes(pc(p)) : triad.has(pc(p))) stableT += w;
+        }
+      }
+      const stableScore = totalT ? band(stableT / totalT, 0.45, 0.85, 0.3) : 0.7;
+      // 3. the tune itself comes back (same pitches on the same steps one phrase later)
+      const byPos = new Map<number, number>();
+      for (const { e, p } of pitched) byPos.set(Math.round(e.tick / step), Math.round(p));
+      let same = 0;
+      let shared = 0;
+      const lagSteps = Math.round((Math.max(1, s.phraseBars) * bar) / step);
+      for (const [pos, p] of byPos) {
+        const q = byPos.get(pos - lagSteps);
+        if (q === undefined) continue;
+        shared++;
+        if (q === p) same++;
+      }
+      const recall = shared >= 2 ? band(same / shared, 0.45, 0.92, 0.35) : 0.55;
+      // 4. more than one kind of movement
+      const kinds = new Set<number>();
+      for (let i = 1; i < pitched.length; i++) kinds.add(Math.round(pitched[i].p - pitched[i - 1].p));
+      const kindScore = band(kinds.size, 3, 9, 2);
+      craftM = apexScore * 0.3 + stableScore * 0.3 + recall * 0.25 + kindScore * 0.15;
+      if (apexScore === 1 && range >= 3) good.push('has one clear high point');
+      if (topShare > 0.5 && range >= 1.5) watch.push('sits on its top note');
+      if (recall === 1 && shared >= 3) good.push('the tune comes back, then varies');
+      else if (shared >= 3 && same / shared < 0.25) watch.push('the tune never returns the same way');
+      if (totalT && stableT / totalT < 0.3) watch.push('long notes avoid the chord – may sound restless');
+    }
+    melody = 100 * (hygieneM * 0.55 + craftM * 0.45);
     if (inKey > 0.97 && scale) good.push('every note is in key');
     if (inKey < 0.85) watch.push('some notes are out of key');
     if (resolves >= 1) good.push('resolves to the tonic');

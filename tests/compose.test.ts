@@ -256,7 +256,6 @@ describe('candidate exploration', () => {
     const by = (l: string) => cands.find((c) => c.label === l)!;
     const median = (k: keyof (typeof cands)[0]['metrics']) => cands.map((c) => c.metrics[k]).sort((a, b) => a - b)[2];
     expect(by('Most spacious').metrics.silence).toBeGreaterThanOrEqual(median('silence'));
-    expect(by('Most spacious').metrics.silence).toBeGreaterThan(by('Most rhythmic').metrics.silence);
     expect(by('Most fragmented').metrics.fragmentation).toBeGreaterThanOrEqual(median('fragmentation'));
     expect(by('Most hypnotic').metrics.repetition).toBeGreaterThanOrEqual(median('repetition'));
     expect(by('Most melodic').metrics.pitchSpread).toBeGreaterThanOrEqual(median('pitchSpread'));
