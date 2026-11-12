@@ -15,9 +15,11 @@ import type { AudioData, BeatContext, Candidate, GeneratorSettings, ProjectDoc, 
 import { decodeWav, encodeWav } from '../../src/core/audio/wav';
 import { autoChop } from '../../src/core/slicing/slices';
 import { parseMidi } from '../../src/core/midi/midi';
-import { analyseBeat, keyName, barTicks } from '../../src/core/beat/analyze';
+import { analyseParts, keyName, barTicks } from '../../src/core/beat/analyze';
+import { DIRECTIONS } from '../../src/core/compose/directions';
+import type { Direction, ComposeMode } from '../../src/core/types';
 import { beatRecipes, arrangementBarsFor, effectiveKey, vocalKeyFit, describeBeat } from '../../src/core/beat/fit';
-import { demoBeatFile, DEMO_BEATS } from '../../src/core/demo/beats';
+import { demoBeatMidi, DEMO_BEATS } from '../../src/core/demo/beats';
 import { defaultSettings } from '../../src/core/compose/engine';
 import { generateCandidates } from '../../src/core/compose/candidates';
 import { newProjectDoc, saveProject, type ProjectFS } from '../../src/core/project/project';
@@ -55,9 +57,8 @@ function importAcapella(doc: ProjectDoc, audio: Map<string, AudioData>, assets: 
 
 /** what dropping a beat MIDI does (beatService.loadBeatBytes) */
 function loadBeat(doc: ProjectDoc, key: string): BeatContext {
-  const parsed = parseMidi(demoBeatFile(key), DEMO_BEATS[key].title);
-  const notes = parsed.tracks.filter((t) => !t.percussion).flatMap((t) => t.notes);
-  const beat = analyseBeat(notes, { name: DEMO_BEATS[key].title, bpm: parsed.bpm, timeSig: parsed.timeSig });
+  const parsed = parseMidi(demoBeatMidi(key), DEMO_BEATS[key].title);
+  const beat = analyseParts(parsed.tracks.map((t, i) => ({ id: `part${i + 1}`, name: parsed.tracks.length > 1 ? t.name : DEMO_BEATS[key].title, notes: t.notes, percussion: t.percussion })), { name: DEMO_BEATS[key].title, bpm: parsed.bpm, timeSig: parsed.timeSig });
   doc.beat = beat;
   doc.sequence.bpm = Math.round(beat.bpm! * 100) / 100;
   doc.sequence.timeSig = beat.timeSig;
@@ -112,6 +113,10 @@ interface Scenario {
   tweak?: (s: GeneratorSettings, beat: BeatContext) => void;
   note?: string;
 }
+
+/** switch a recipe to one of the style packs (what choosing a Musical direction in the app does) */
+const style = (direction: Direction, mode: ComposeMode = 'melodic', extra: Partial<GeneratorSettings> = {}) => (s: GeneratorSettings) =>
+  void Object.assign(s, { mode, direction, feel: DIRECTIONS[direction].defaultFeel, controls: { ...DIRECTIONS[direction].controls }, transpose: true, layers: [], ...extra });
 
 const SCENARIOS: Scenario[] = [
   {
@@ -182,6 +187,58 @@ const SCENARIOS: Scenario[] = [
     pick: ['Most fragmented'],
     seed: 707,
   },
+  {
+    id: '08-drain-float-full-beat',
+    title: 'Style: Drain / cloud → floating pitched mantra over a half-time beat (pads + bass + lead + drums)',
+    sources: [{ file: 'acapella-tonight-sung.wav', name: 'Tonight (sung)' }],
+    beat: 'full-beat',
+    recipe: 'hook',
+    pick: ['best'],
+    seed: 808,
+    tweak: style('drain'),
+    note: 'The beat MIDI has four parts; the drums set the half-time feel and the chops stay out of the lead synth’s register.',
+  },
+  {
+    id: '09-hyperpop-hook',
+    title: 'Style: Hyperpop / glitch-pop → pitched-up hook with stutters, octave jumps and tape-stops',
+    sources: [{ file: 'acapella-tonight-sung.wav', name: 'Tonight (sung)' }],
+    beat: 'am-f-c-g-pads',
+    recipe: 'hook',
+    pick: ['best'],
+    seed: 909,
+    tweak: style('hyperpop'),
+  },
+  {
+    id: '10-trance-lead',
+    title: 'Style: Trance / euphoric → one vowel played like a synth lead',
+    sources: [{ file: 'acapella-tonight-sung.wav', name: 'Tonight (sung)' }],
+    beat: 'am-f-c-g-pads',
+    recipe: 'hook',
+    pick: ['best'],
+    seed: 1010,
+    tweak: style('trance', 'melodic', { purpose: 'drop' }),
+  },
+  {
+    id: '11-garage-shuffle',
+    title: 'Style: UK garage / 2-step → swung pitched chops over Dm7–G7 stabs',
+    sources: [{ file: 'acapella-tonight-sung.wav', name: 'Tonight (sung)' }],
+    beat: 'dorian-stabs',
+    recipe: 'gaps',
+    pick: ['best'],
+    seed: 1111,
+    tweak: style('ukg', 'rhythmic'),
+  },
+  {
+    id: '12-ambient-wash',
+    title: 'Style: Ambient texture → slow vowels for your own reverb (export is dry)',
+    sources: [{ file: 'acapella-tonight-sung.wav', name: 'Tonight (sung)' }],
+    beat: 'am-f-c-g-pads',
+    recipe: 'ghost',
+    pick: ['best'],
+    seed: 1212,
+    tweak: style('ambient', 'ghost'),
+    note: 'Meant as raw material: put a long reverb on it in your DAW.',
+  },
 ];
 
 const report: string[] = [];
@@ -220,7 +277,8 @@ for (const sc of SCENARIOS) {
   report.push(`- **Recipe:** “${recipe.title}” – ${recipe.why}${sc.note ? ` _${sc.note}_` : ''}`);
   report.push(`- **Generated:** 6 ideas in ${ms} ms (${cands.map((c) => c.label).join(', ')}) · ${doc.sequence.bars} bars at ${doc.sequence.bpm} BPM`, '');
   for (const label of sc.pick) {
-    const c = cands.find((x) => x.label === label) ?? cands[0];
+    const c = label === 'best' ? cands.slice().sort((a, b) => (b.score?.total ?? 0) - (a.score?.total ?? 0))[0] : cands.find((x) => x.label === label) ?? cands[0];
+    doc.sequence.groove = c.groove;
     doc.sequence.tracks = c.tracks;
     doc.sequence.events = c.events;
     doc.sequence.motifs = c.motifs;
@@ -252,13 +310,14 @@ for (const sc of SCENARIOS) {
     report.push(`### Idea: ${c.label}`, '');
     report.push(`- \`audio/${slug}_vocals.mp3\` – the app's WAV export (vocals only, normalised to −1 dBFS)`);
     report.push(`- \`audio/${slug}_with-beat.mp3\` – same, with the beat MIDI on a simple preview synth (listening reference only)`);
+    if (c.score) report.push(`- Hook check **${c.score.total}/100**${c.score.good.length ? ` – ${c.score.good.join('; ')}` : ''}${c.score.watch.length ? ` · watch: ${c.score.watch.join('; ')}` : ''}`);
     report.push(`- ${c.events.length} events on ${c.tracks.filter((t) => c.events.some((e) => e.trackId === t.id)).map((t) => t.name).join(', ')}`);
     report.push('', '<details><summary>Why the app made these decisions</summary>', '', ...c.description.map((d) => `- ${d}`), '', '</details>', '');
     console.log(`✓ ${slug}  (${c.events.length} events)`);
   }
   // keep the first picked idea in the arrangement; all six ideas are in the Idea Lab
-  const first = cands.find((x) => x.label === sc.pick[0]) ?? cands[0];
-  Object.assign(doc.sequence, { tracks: first.tracks, events: first.events, motifs: first.motifs, settings: first.settings });
+  const first = sc.pick[0] === 'best' ? cands.slice().sort((a, b) => (b.score?.total ?? 0) - (a.score?.total ?? 0))[0] : cands.find((x) => x.label === sc.pick[0]) ?? cands[0];
+  Object.assign(doc.sequence, { tracks: first.tracks, events: first.events, motifs: first.motifs, settings: first.settings, groove: first.groove });
   const projDir = join(projOut, `${sc.id}.vcs`);
   if (existsSync(projDir)) rmSync(projDir, { recursive: true });
   await saveProject(nodeFS, projDir, doc, assets);

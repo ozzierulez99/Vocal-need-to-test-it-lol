@@ -46,3 +46,23 @@ test('desktop app: example → save folder → reopen → export WAV to disk', a
   expect(a.channels[0].length / a.sampleRate).toBeGreaterThan(8 * 4 * 60 / 132 - 0.01);
   await app.close();
 });
+
+test('desktop app: an idea is rendered to a real file ready to drag into a DAW', async () => {
+  test.skip(!process.env.DISPLAY, 'needs a display (use xvfb-run)');
+  const dir = mkdtempSync(join(tmpdir(), 'vcs-e2e-'));
+  const { app, win } = await launch({ VCS_E2E_DIR: dir });
+  await win.getByTestId('welcome-example-ethereal-hook').click();
+  await expect(win.getByTestId('event').first()).toBeVisible();
+  await win.getByTestId('nav-compose').click();
+  await expect(win.getByTestId('candidate').first()).toBeVisible();
+  const handle = win.getByTestId('candidate').first().getByTestId('drag-out');
+  await expect(handle).toBeVisible();
+  await handle.hover();
+  const dragDir = join(tmpdir(), 'vocal-chop-studio-drag');
+  await expect.poll(() => (existsSync(dragDir) ? readdirSync(dragDir).filter((f) => f.endsWith('.wav')).length : 0)).toBeGreaterThan(0);
+  const wav = readdirSync(dragDir).find((f) => f.endsWith('.wav'))!;
+  const a = decodeWav(new Uint8Array(readFileSync(join(dragDir, wav))));
+  expect(a.channels.length).toBe(2);
+  expect(a.channels[0].length / a.sampleRate).toBeGreaterThan(5);
+  await app.close();
+});
