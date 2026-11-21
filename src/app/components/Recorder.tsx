@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useStore } from '../store/store';
 import { Btn, TextField } from './ui';
 import { keepRecording } from '../services/projectService';
+import { generateMix } from '../services/studioService';
 import { engine } from '../audio/engine';
 import type { AudioData } from '../../core/types';
 import { WaveThumb } from './WaveThumb';
@@ -104,7 +105,7 @@ export function Recorder() {
           <Btn testid="rec-replay" disabled={!take || state === 'recording'} onClick={replay}>▶ Replay</Btn>
           <div className="spacer" />
           <Btn testid="rec-discard" onClick={() => { cleanup(); setUI({ showRecorder: false }); }}>Discard</Btn>
-          <Btn kind="primary" testid="rec-keep" disabled={!take || state === 'recording'} onClick={() => { if (take) keepRecording(take, name); setUI({ showRecorder: false, view: 'slice' }); }}>Keep</Btn>
+          <Btn kind="primary" testid="rec-keep" disabled={!take || state === 'recording'} onClick={() => { if (take) keepRecording(take, name); const studio = useStore.getState().ui.view === 'studio'; setUI({ showRecorder: false, view: studio ? 'studio' : 'slice' }); if (studio && take) void generateMix(); }}>Keep</Btn>
         </div>
       </div>
     </div>

@@ -49,5 +49,21 @@ export async function fresh(page: Page) {
   await page.goto('/');
   await page.evaluate(() => new Promise((r) => { const q = indexedDB.deleteDatabase('vocal-chop-studio'); q.onsuccess = q.onerror = q.onblocked = () => r(null); }));
   await page.goto('/');
+  await expect(page.getByTestId('studio-empty')).toBeVisible();
+  // the Pro workflows start from the Chops workspace
+  await page.getByTestId('nav-slice').click();
   await expect(page.getByText('Turn one vocal into many musical ideas.')).toBeVisible();
+}
+
+/** Fresh app, staying on the Studio front page. */
+export async function freshStudio(page: Page) {
+  await page.goto('/');
+  await page.evaluate(() => new Promise((r) => { const q = indexedDB.deleteDatabase('vocal-chop-studio'); q.onsuccess = q.onerror = q.onblocked = () => r(null); }));
+  await page.goto('/');
+  await expect(page.getByTestId('studio-empty')).toBeVisible();
+}
+
+export async function studioIdle(page: Page) {
+  await page.waitForTimeout(50);
+  await page.waitForFunction(() => !(window as any).__vcs.useStore.getState().ui.studioBusy, null, { timeout: 30000 });
 }

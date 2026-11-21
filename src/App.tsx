@@ -6,6 +6,10 @@ import { ComposeView } from './app/views/ComposeView';
 import { LibraryView } from './app/views/LibraryView';
 import { ExportView } from './app/views/ExportView';
 import { BeatView } from './app/views/BeatView';
+import { StudioView } from './app/views/StudioView';
+import { handleStudioKey } from './app/studio/keys';
+import { generateMix } from './app/services/studioService';
+import { draggedOutNames, recentlyDraggedOut } from './app/services/exportService';
 import { loadBeatBytes, loadBackingBytes } from './app/services/beatService';
 import { handleKeyDown, handleKeyUp } from './app/keys';
 import { importAudioFiles } from './app/services/projectService';
@@ -36,7 +40,7 @@ export function App() {
         return;
       }
       if (isTyping(e)) return;
-      if (handleKeyDown(e)) {
+      if (handleKeyDown(e) || handleStudioKey(e)) {
         e.preventDefault();
         e.stopImmediatePropagation();
         return;
@@ -67,7 +71,7 @@ export function App() {
     // drag & drop anywhere: MIDI → beat context, audio → vocal sources
     let depth = 0;
     const hasFiles = (e: DragEvent) => Array.from(e.dataTransfer?.types ?? []).includes('Files');
-    const onEnter = (e: DragEvent) => { if (hasFiles(e)) { depth++; setDragging(true); } };
+    const onEnter = (e: DragEvent) => { if (hasFiles(e) && !recentlyDraggedOut()) { depth++; setDragging(true); } };
     const onLeave = () => { depth = Math.max(0, depth - 1); if (!depth) setDragging(false); };
     const onOver = (e: DragEvent) => { if (hasFiles(e)) e.preventDefault(); };
     const onDrop = async (e: DragEvent) => {
@@ -75,7 +79,10 @@ export function App() {
       e.preventDefault();
       depth = 0;
       setDragging(false);
-      const files = Array.from(e.dataTransfer?.files ?? []);
+      // a chop or idea dragged out of the app and dropped back onto it is not an import
+      const files = Array.from(e.dataTransfer?.files ?? []).filter((f) => !draggedOutNames.has(f.name));
+      if (!files.length) return;
+      const inStudio = useStore.getState().ui.view === 'studio';
       const zone = (e.target as HTMLElement | null)?.closest?.('[data-drop]')?.getAttribute('data-drop');
       const midis = files.filter((f) => /\.midi?$/i.test(f.name));
       const audio = files.filter((f) => !/\.midi?$/i.test(f.name) && !/\.vcsz$/i.test(f.name));
@@ -83,6 +90,7 @@ export function App() {
         await loadBackingBytes(new Uint8Array(await audio[0].arrayBuffer()), audio[0].name);
         return;
       }
+      const before = useStore.getState().doc.sources.length;
       if (audio.length) await importAudioFiles(await Promise.all(audio.map(async (f) => ({ name: f.name, bytes: new Uint8Array(await f.arrayBuffer()) }))));
       if (midis.length) {
         // several files, or a drop on "add part", build one beat from many parts (chords + bass + drums…)
@@ -92,8 +100,11 @@ export function App() {
           const add = (zone === 'add-part' || i > 0) && !!useStore.getState().doc.beat;
           ok = !!loadBeatBytes(new Uint8Array(await f.arrayBuffer()), f.name, add ? 'add' : 'replace') || ok;
         }
-        if (ok) useStore.getState().setUI({ view: 'beat' });
-      } else if (audio.length) useStore.getState().setUI({ view: 'slice' });
+        if (ok && !inStudio) useStore.getState().setUI({ view: 'beat' });
+      } else if (audio.length && !inStudio) useStore.getState().setUI({ view: 'slice' });
+      // Studio: new vocal or new beat → fresh ideas straight away
+      const st = useStore.getState();
+      if (inStudio && st.doc.slices.length && (st.doc.sources.length > before || midis.length)) void generateMix();
     };
     window.addEventListener('dragenter', onEnter);
     window.addEventListener('dragleave', onLeave);
@@ -113,6 +124,7 @@ export function App() {
   return (
     <div className="app">
       <TopBar />
+      {view === 'studio' && <StudioView />}
       {view === 'slice' && <SliceView />}
       {view === 'beat' && <BeatView />}
       {view === 'compose' && <ComposeView />}

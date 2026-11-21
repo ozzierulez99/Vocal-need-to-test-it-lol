@@ -1,12 +1,24 @@
 import React from 'react';
 import { Btn } from './ui';
 
+const STUDIO: [string, string][] = [
+  ['Drop a vocal', 'Chopped automatically, key found, ideas written in ten styles'],
+  ['Click a card · Space', 'Play / stop that idea (it loops)'],
+  ['← →', 'Flip through ideas – seamlessly while playing'],
+  ['Click a style', 'Dive in: six takes on that style · Part / Energy / Pitch / Feel write a new batch'],
+  ['Click a chop in “Chops in this idea”', 'Swap it – melody and rhythm stay · S shuffles all chops'],
+  ['F · V · Del', 'Like · more like this · delete'],
+  ['1 – 0', 'Play the first ten chop pads'],
+  ['Drag a card or a pad', 'Into your DAW (desktop app) – or onto your desktop'],
+  ['Ctrl+Z', 'Undo the last idea edit'],
+];
+
 const ROWS: [string, string][] = [
   ['Space', 'Play / stop'],
   ['Esc', 'Stop and return to start'],
   ['Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y)', 'Undo / redo'],
   ['Ctrl+S / Ctrl+Shift+S', 'Save / save as'],
-  ['Alt+1 … Alt+5', 'Switch workspace'],
+  ['Alt+1 … Alt+6', 'Studio · Chops · Beat Fit · Editor · Library · Export'],
   ['Drop .mid files anywhere', 'Load them as your beat (chords, bass, drums, lead are recognised) – audio files become vocal sources'],
   ['⚡ Instant ideas', 'Tries several styles and keeps the six strongest, most different ideas (scored by the hook check)'],
   ['Idea card: ⇱ Drag / WAV', 'Drag an idea straight into your DAW (desktop app) or save it as a WAV without applying it'],
@@ -33,7 +45,16 @@ export function Help({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-back" onMouseDown={onClose}>
       <div className="modal" style={{ width: 640 }} onMouseDown={(e) => e.stopPropagation()} data-testid="help">
-        <h2>Shortcuts & gestures</h2>
+        <h2>Studio</h2>
+        <dl className="info-grid" style={{ gridTemplateColumns: '260px 1fr', rowGap: 6 }}>
+          {STUDIO.map(([k, v]) => (
+            <React.Fragment key={k}>
+              <dt><kbd style={{ color: 'var(--text)' }}>{k}</kbd></dt>
+              <dd style={{ fontFamily: 'var(--font)' }}>{v}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+        <h2>Pro tools</h2>
         <dl className="info-grid" style={{ gridTemplateColumns: '260px 1fr', rowGap: 6 }}>
           {ROWS.map(([k, v]) => (
             <React.Fragment key={k}>

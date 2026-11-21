@@ -314,6 +314,8 @@ export interface GeneratorSettings {
   purpose?: Purpose;
   /** Half-time phrasing (auto = decided from style, tempo and the beat). */
   timeFeel?: TimeFeel;
+  /** Studio: key follows the vocal (true / undefined) or was chosen by the user (false). */
+  keyAuto?: boolean;
   /** Conversation settings */
   voiceA?: string[];
   voiceB?: string[];
@@ -469,6 +471,10 @@ export interface CandidateMetrics {
 export interface Candidate {
   id: string;
   label: string;
+  /** Studio style this idea belongs to (see src/app/studio/styles.ts). */
+  style?: string;
+  /** Ideas generated together share a batch time (keeps them in their generated order). */
+  batch?: number;
   profile: string;
   settings: GeneratorSettings;
   tracks: Track[];

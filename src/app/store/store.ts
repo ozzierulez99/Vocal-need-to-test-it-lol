@@ -18,8 +18,9 @@ import { reorder, analyseSlice, globalRmsPeak, suggestCategory } from '../../cor
 import { ROLE_COLORS } from '../../core/compose/engine';
 import { uid } from '../../core/ids';
 import { buildPeaks, type PeakPyramid } from '../../core/audio/peaks';
+import type { StudioTweaks } from '../studio/styles';
 
-export type View = 'slice' | 'beat' | 'compose' | 'library' | 'export';
+export type View = 'studio' | 'slice' | 'beat' | 'compose' | 'library' | 'export';
 
 export interface Toast {
   id: string;
@@ -44,6 +45,13 @@ export interface UIState {
   /** computer-keyboard sampler on / recording what is played into the timeline */
   keys?: boolean;
   keysRecord?: boolean;
+  /* Studio */
+  studioTab?: string;
+  idea?: string | null;
+  studioBusy?: string | null;
+  studioTweaks?: StudioTweaks;
+  studioVocal?: string;
+  padFilter?: string;
 }
 
 interface Runtime {
@@ -106,7 +114,7 @@ export const useStore = create<AppState>((set, get) => ({
   rt: { audio: new Map(), assets: new Map(), peaks: new Map() },
   rtVersion: 0,
   ui: {
-    view: 'slice',
+    view: 'studio',
     sourceId: null,
     sliceIds: [],
     eventIds: [],
@@ -353,7 +361,7 @@ export const actions = {
       // keep favourites and the most recent ideas; long histories bloat project files
       const keep = d.candidates.filter((x) => x.favourite);
       const rest = d.candidates.filter((x) => !x.favourite);
-      d.candidates = [...keep, ...rest.slice(-12), ...(c as any)];
+      d.candidates = [...keep, ...rest.slice(-40), ...(c as any)];
     });
   },
   updateCandidate(id: string, patch: Partial<Candidate>) {

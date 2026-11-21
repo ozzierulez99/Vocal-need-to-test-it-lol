@@ -1,5 +1,5 @@
 import { test, expect, _electron } from '@playwright/test';
-import { mkdtempSync, existsSync, readFileSync, readdirSync } from 'fs';
+import { mkdtempSync, existsSync, readFileSync, readdirSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import { decodeWav } from '../src/core/audio/wav';
@@ -65,4 +65,28 @@ test('desktop app: an idea is rendered to a real file ready to drag into a DAW',
   expect(a.channels.length).toBe(2);
   expect(a.channels[0].length / a.sampleRate).toBeGreaterThan(5);
   await app.close();
+});
+
+test('desktop app: Studio card drag hands the OS a real WAV', async () => {
+  test.skip(!process.env.DISPLAY, 'needs a display (use xvfb-run)');
+  const dir = mkdtempSync(join(tmpdir(), 'vcs-e2e-'));
+  const dragDir = join(tmpdir(), 'vocal-chop-studio-drag');
+  rmSync(dragDir, { recursive: true, force: true });
+  const { app, win } = await launch({ VCS_E2E_DIR: dir });
+  try {
+    await expect(win.getByTestId('studio-empty')).toBeVisible();
+    await win.getByTestId('welcome-demo').click();
+    await expect(win.getByTestId('idea')).toHaveCount(10, { timeout: 30000 });
+    await win.getByTestId('idea').nth(2).hover();
+    await win.getByTestId('pad').first().hover();
+    const wavs = () => (existsSync(dragDir) ? readdirSync(dragDir).filter((f) => f.endsWith('.wav')) : []);
+    await expect.poll(() => wavs().some((f) => f.includes('_chop_')) && wavs().some((f) => f.includes('bpm'))).toBe(true);
+    const idea = wavs().find((f) => f.includes('bpm'))!;
+    const a = decodeWav(new Uint8Array(readFileSync(join(dragDir, idea))));
+    expect(a.channels[0].length / a.sampleRate).toBeGreaterThan(8 * 4 * 60 / 140 - 0.05);
+  } finally {
+    // skip the "close without saving?" question
+    await win.evaluate(() => (window as any).__vcs.useStore.setState({ dirty: false })).catch(() => {});
+    await app.close();
+  }
 });

@@ -11,11 +11,12 @@ import type { View } from '../store/store';
 import { Help } from './Help';
 
 const VIEWS: { id: View; label: string; key: string }[] = [
-  { id: 'slice', label: 'Sources & Slices', key: '1' },
-  { id: 'beat', label: 'Beat Fit', key: '2' },
-  { id: 'compose', label: 'Compose & Explore', key: '3' },
-  { id: 'library', label: 'Library', key: '4' },
-  { id: 'export', label: 'Export', key: '5' },
+  { id: 'studio', label: 'Studio', key: '1' },
+  { id: 'slice', label: 'Chops', key: '2' },
+  { id: 'beat', label: 'Beat Fit', key: '3' },
+  { id: 'compose', label: 'Editor', key: '4' },
+  { id: 'library', label: 'Library', key: '5' },
+  { id: 'export', label: 'Export', key: '6' },
 ];
 
 function Position() {
@@ -139,11 +140,14 @@ export function TopBar() {
         {dirty && <span className="dirty-dot" title="Unsaved changes" />}
       </div>
       <nav className="nav">
-        {VIEWS.map((v) => (
-          <button key={v.id} data-testid={`nav-${v.id}`} className={view === v.id ? 'on' : ''} onClick={() => setUI({ view: v.id })} title={`Alt+${v.key}`}>
+        {VIEWS.map((v, i) => (
+          <React.Fragment key={v.id}>
+          {i === 1 && <span className="nav-group" title="Detailed tools: edit chops by hand, beat analysis, note-by-note timeline, library, all export formats">Pro</span>}
+          <button data-testid={`nav-${v.id}`} className={`${view === v.id ? 'on' : ''} ${v.id === 'studio' ? 'studio-tab' : ''}`} onClick={() => setUI({ view: v.id })} title={`Alt+${v.key}`}>
             {v.label}
             {v.id === 'beat' && beatName && <span className="nav-dot" title={beatName} />}
           </button>
+          </React.Fragment>
         ))}
       </nav>
       <div className="spacer" />

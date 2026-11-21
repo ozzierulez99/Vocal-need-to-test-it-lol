@@ -24,7 +24,7 @@ function req() {
  * Texture styles want long, held notes. If the project has none, the two best
  * vowels are loop-sustained into pads first (new derived sources; undoable).
  */
-function preparePads(s: GeneratorSettings) {
+export function preparePads(s: GeneratorSettings) {
   if (s.mode !== 'ghost' && s.direction !== 'ambient') return;
   const before = new Set(st().doc.slices.map((x) => x.id));
   const n = ensurePads(2, 4);

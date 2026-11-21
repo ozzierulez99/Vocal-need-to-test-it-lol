@@ -21,7 +21,7 @@ function syncEngine() {
 export function newProject() {
   engine.stop();
   st().loadDoc(newProjectDoc(), new Map(), new Map(), null);
-  st().setUI({ view: 'slice' });
+  st().setUI({ view: 'studio', idea: null, studioTab: 'all' });
 }
 
 export async function saveCurrent(saveAs = false): Promise<boolean> {
@@ -87,7 +87,7 @@ export async function openProject(location?: string | null) {
     await platform.addRecent({ name: r.doc.name, location: loc });
     if (r.missing.length) st().toast(`Missing audio: ${r.missing.join(', ')}. Use “Relink” on the source to locate it.`, 'error');
     else st().toast(`Opened “${r.doc.name}”`, 'success');
-    st().setUI({ view: r.doc.sequence.events.length ? 'compose' : 'slice' });
+    st().setUI({ view: r.doc.candidates.length || !r.doc.sequence.events.length ? 'studio' : 'compose', idea: null, studioTab: 'all' });
   } catch (e) {
     st().toast(`Could not open project: ${(e as Error).message}`, 'error');
   }
@@ -107,7 +107,7 @@ export async function importBundleBytes(bytes: Uint8Array) {
     st().loadDoc(doc, audio, assets, null);
     syncEngine();
     st().toast(missing.length ? `Bundle opened; missing: ${missing.join(', ')}` : `Opened bundle “${doc.name}”`, missing.length ? 'error' : 'success');
-    st().setUI({ view: doc.sequence.events.length ? 'compose' : 'slice' });
+    st().setUI({ view: doc.candidates.length || !doc.sequence.events.length ? 'studio' : 'compose', idea: null, studioTab: 'all' });
   } catch (e) {
     st().toast((e as Error).message, 'error');
   }
